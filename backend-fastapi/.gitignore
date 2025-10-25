@@ -30,6 +30,9 @@ ENV/
 .env
 .env.local
 
+# ChromaDB data
+data/
+
 # IDE
 .vscode/
 .idea/
