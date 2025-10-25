@@ -23,6 +23,13 @@ class Settings(BaseSettings):
         "http://localhost:3001",
     ]
 
+    # OpenRouter settings
+    OPENROUTER_API_KEY: str = ""
+    OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
+    OPENROUTER_MODEL: str = "anthropic/claude-3.5-sonnet"
+    OPENROUTER_SITE_URL: str = "http://localhost:3000"
+    OPENROUTER_SITE_NAME: str = "Harmoniq"
+
     # Database settings (add when needed)
     # DATABASE_URL: str = "postgresql://user:password@localhost/dbname"
 
