@@ -27,12 +27,11 @@ class Settings(BaseSettings):
         "http://localhost:3001",
     ]
 
-    # OpenRouter settings
-    OPENROUTER_API_KEY: str = ""
-    OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
-    OPENROUTER_MODEL: str = "anthropic/claude-3.5-sonnet"
-    OPENROUTER_SITE_URL: str = "http://localhost:3000"
-    OPENROUTER_SITE_NAME: str = "Harmoniq"
+    # LavaLabs settings (forwards to Anthropic)
+    LAVA_API_KEY: str = ""
+    LAVA_BASE_URL: str = "https://api.lavapayments.com/v1/forward?u=https://api.anthropic.com/v1/messages"
+    ANTHROPIC_MODEL: str = "claude-3-5-sonnet-20240620"
+    ANTHROPIC_VERSION: str = "2023-06-01"
 
     # Database settings (add when needed)
     # DATABASE_URL: str = "postgresql://user:password@localhost/dbname"

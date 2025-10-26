@@ -1,4 +1,4 @@
-"""OpenRouter AI Agent for making LLM API calls"""
+"""LavaLabs AI Agent for making LLM API calls (forwards to Anthropic)"""
 
 import json
 from pathlib import Path
@@ -10,7 +10,7 @@ from app.core.config import settings
 
 
 class OpenRouterAgent:
-    """Agent for interacting with OpenRouter API"""
+    """Agent for interacting with Anthropic API via LavaLabs"""
 
     def __init__(
         self,
@@ -19,27 +19,26 @@ class OpenRouterAgent:
         base_url: Optional[str] = None,
     ):
         """
-        Initialize OpenRouter agent
+        Initialize LavaLabs agent
 
         Args:
-            api_key: OpenRouter API key (defaults to settings)
-            model: Model to use (defaults to settings)
-            base_url: Base URL for OpenRouter API (defaults to settings)
+            api_key: LavaLabs API key (defaults to settings)
+            model: Anthropic model to use (defaults to settings)
+            base_url: Base URL for LavaLabs API (defaults to settings)
         """
-        self.api_key = api_key or settings.OPENROUTER_API_KEY
-        self.model = model or settings.OPENROUTER_MODEL
-        self.base_url = base_url or settings.OPENROUTER_BASE_URL
+        self.api_key = api_key or settings.LAVA_API_KEY
+        self.model = model or settings.ANTHROPIC_MODEL
+        self.base_url = base_url or settings.LAVA_BASE_URL
 
         if not self.api_key:
-            raise ValueError("OpenRouter API key is required")
+            raise ValueError("LavaLabs API key is required")
 
     def _get_headers(self) -> Dict[str, str]:
-        """Get headers for OpenRouter API requests"""
+        """Get headers for LavaLabs/Anthropic API requests"""
         return {
-            "Authorization": f"Bearer {self.api_key}",
+            "x-api-key": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
-            "HTTP-Referer": settings.OPENROUTER_SITE_URL,
-            "X-Title": settings.OPENROUTER_SITE_NAME,
+            "anthropic-version": settings.ANTHROPIC_VERSION,
         }
 
     async def call(
@@ -51,7 +50,7 @@ class OpenRouterAgent:
         **kwargs,
     ) -> Dict[str, Any]:
         """
-        Make a call to OpenRouter API
+        Make a call to Anthropic API via LavaLabs
 
         Args:
             prompt: User prompt/message
@@ -61,35 +60,33 @@ class OpenRouterAgent:
             **kwargs: Additional parameters for the API
 
         Returns:
-            Dict containing the response from OpenRouter
+            Dict containing the response from Anthropic
 
         Raises:
             httpx.HTTPError: If the API request fails
         """
         messages: List[Dict[str, str]] = []
 
-        # Add system prompt if provided
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
-
-        # Add user prompt
+        # Add user prompt (system is separate in Anthropic API)
         messages.append({"role": "user", "content": prompt})
 
-        # Prepare request payload
+        # Prepare request payload (Anthropic format)
         payload = {
             "model": self.model,
             "messages": messages,
+            "max_tokens": max_tokens or 4096,  # Anthropic requires max_tokens
             "temperature": temperature,
             **kwargs,
         }
 
-        if max_tokens:
-            payload["max_tokens"] = max_tokens
+        # Add system prompt if provided (separate field in Anthropic)
+        if system_prompt:
+            payload["system"] = system_prompt
 
         # Make API request
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{self.base_url}/chat/completions",
+                self.base_url,
                 headers=self._get_headers(),
                 json=payload,
                 timeout=60.0,
@@ -116,7 +113,7 @@ class OpenRouterAgent:
             **kwargs: Additional parameters for the API
 
         Returns:
-            Dict containing the response from OpenRouter
+            Dict containing the response from Anthropic
         """
         # Load prompt from file
         prompt_path = Path(__file__).parent / "prompts" / f"{prompt_name}.txt"
@@ -142,15 +139,16 @@ class OpenRouterAgent:
 
     def get_text_response(self, response: Dict[str, Any]) -> str:
         """
-        Extract text response from OpenRouter API response
+        Extract text response from Anthropic API response
 
         Args:
-            response: Response dict from OpenRouter API
+            response: Response dict from Anthropic API
 
         Returns:
             The text content of the response
         """
-        return response["choices"][0]["message"]["content"]
+        # Anthropic format: {"content": [{"type": "text", "text": "..."}]}
+        return response["content"][0]["text"]
 
     async def stream_call(
         self,
@@ -161,7 +159,7 @@ class OpenRouterAgent:
         **kwargs,
     ):
         """
-        Make a streaming call to OpenRouter API
+        Make a streaming call to Anthropic API via LavaLabs
 
         Args:
             prompt: User prompt/message
@@ -175,26 +173,24 @@ class OpenRouterAgent:
         """
         messages: List[Dict[str, str]] = []
 
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
-
         messages.append({"role": "user", "content": prompt})
 
         payload = {
             "model": self.model,
             "messages": messages,
+            "max_tokens": max_tokens or 4096,
             "temperature": temperature,
             "stream": True,
             **kwargs,
         }
 
-        if max_tokens:
-            payload["max_tokens"] = max_tokens
+        if system_prompt:
+            payload["system"] = system_prompt
 
         async with httpx.AsyncClient() as client:
             async with client.stream(
                 "POST",
-                f"{self.base_url}/chat/completions",
+                self.base_url,
                 headers=self._get_headers(),
                 json=payload,
                 timeout=60.0,
