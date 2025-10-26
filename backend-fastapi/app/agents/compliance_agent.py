@@ -5,14 +5,14 @@ Compliance checking agent that determines if protocol text complies with regulat
 import json
 import re
 from typing import Dict, List
-from app.agents.openrouter_agent import OpenRouterAgent
+from app.agents.lava_agent import LavaAgent
 
 
 class ComplianceAgent:
     """Agent that checks protocol compliance against regulations"""
     
     def __init__(self):
-        self.agent = OpenRouterAgent()
+        self.agent = LavaAgent()
     
     async def check_compliance(
         self,

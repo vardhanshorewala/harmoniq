@@ -5,14 +5,14 @@ Agent that generates specific diffs to fix compliance violations
 import json
 import re
 from typing import Dict, List
-from app.agents.openrouter_agent import OpenRouterAgent
+from app.agents.lava_agent import LavaAgent
 
 
 class ViolationFixAgent:
     """Agent that generates targeted diffs to fix compliance violations"""
     
     def __init__(self):
-        self.agent = OpenRouterAgent()
+        self.agent = LavaAgent()
     
     async def fix_violations(
         self,

@@ -1,5 +1,6 @@
 """LavaLabs AI Agent for making LLM API calls (forwards to Anthropic)"""
 
+import asyncio
 import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -9,7 +10,7 @@ import httpx
 from app.core.config import settings
 
 
-class OpenRouterAgent:
+class LavaAgent:
     """Agent for interacting with Anthropic API via LavaLabs"""
 
     def __init__(
@@ -83,16 +84,31 @@ class OpenRouterAgent:
         if system_prompt:
             payload["system"] = system_prompt
 
-        # Make API request
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                self.base_url,
-                headers=self._get_headers(),
-                json=payload,
-                timeout=60.0,
-            )
-            response.raise_for_status()
-            return response.json()
+        # Make API request with retry logic for rate limiting
+        max_retries = 5
+        base_delay = 2.0  # Start with 2 second delay
+        
+        for attempt in range(max_retries):
+            try:
+                async with httpx.AsyncClient() as client:
+                    response = await client.post(
+                        self.base_url,
+                        headers=self._get_headers(),
+                        json=payload,
+                        timeout=60.0,
+                    )
+                    response.raise_for_status()
+                    return response.json()
+                    
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 429:  # Rate limit
+                    if attempt < max_retries - 1:
+                        # Exponential backoff: 2s, 4s, 8s, 16s, 32s
+                        delay = base_delay * (2 ** attempt)
+                        print(f"    Rate limited, waiting {delay}s before retry {attempt + 1}/{max_retries}...")
+                        await asyncio.sleep(delay)
+                        continue
+                raise  # Re-raise if not rate limit or final attempt
 
     async def call_with_prompt_file(
         self,
@@ -205,4 +221,5 @@ class OpenRouterAgent:
                             yield json.loads(data)
                         except json.JSONDecodeError:
                             continue
+
 

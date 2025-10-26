@@ -336,7 +336,7 @@ async def check_pdf_compliance(
     This endpoint:
     1. Extracts text from uploaded PDF
     2. Chunks the PDF into N parts (default 12)
-    3. Uses concurrent.futures to send all chunks to OpenRouter in parallel
+    3. Uses concurrent.futures to send all chunks to LavaLabs in parallel
     4. For each chunk, retrieves relevant regulations using HippoRAG
     5. Returns aggregated compliance results
     
