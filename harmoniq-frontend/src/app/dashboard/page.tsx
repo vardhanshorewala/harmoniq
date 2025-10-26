@@ -4,6 +4,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import dynamic from "next/dynamic";
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 // @ts-ignore - d3-force types not required for build
 import * as d3 from "d3-force";
 import * as THREE from "three";
@@ -54,6 +56,8 @@ export default function DashboardPage() {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [markdownContent, setMarkdownContent] = useState<string>("");
   const [fileName, setFileName] = useState<string>("");
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"pdf" | "markdown">("pdf"); // Toggle between PDF and Markdown
 
   const [nodes, setNodes] = useState<NodeData[]>([]);
   const [edges, setEdges] = useState<EdgeData[]>([]);
@@ -63,15 +67,44 @@ export default function DashboardPage() {
   const [violatedRegulationIds, setViolatedRegulationIds] = useState<Set<string>>(new Set());
   const [isFixingViolations, setIsFixingViolations] = useState(false);
   const [fixError, setFixError] = useState<string | null>(null);
+  const [proposedChanges, setProposedChanges] = useState<any[]>([]);
+  const [showDiffs, setShowDiffs] = useState(false);
+  
+  const pdfBlobUrlRef = useRef<string | null>(null);
 
-  // Load markdown and compliance results from sessionStorage
+  // Load markdown, PDF, and compliance results from sessionStorage
   useEffect(() => {
     const storedMarkdown = sessionStorage.getItem("originalMarkdown");
     const storedName = sessionStorage.getItem("uploadedFileName");
+    const storedPdfData = sessionStorage.getItem("uploadedFileData"); // base64 data
     const storedResults = sessionStorage.getItem("complianceResults");
     
     if (storedMarkdown) setMarkdownContent(storedMarkdown);
     if (storedName) setFileName(storedName);
+    
+    // Convert base64 PDF data back to blob URL
+    if (storedPdfData) {
+      try {
+        // Convert base64 to blob
+        fetch(storedPdfData)
+          .then(res => res.blob())
+          .then(blob => {
+            const url = URL.createObjectURL(blob);
+            pdfBlobUrlRef.current = url;
+            setPdfUrl(url);
+            setViewMode("pdf"); // Default to PDF if available
+          })
+          .catch(err => {
+            console.error("Failed to create PDF blob:", err);
+            if (storedMarkdown) setViewMode("markdown");
+          });
+      } catch (error) {
+        console.error("Error processing PDF data:", error);
+        if (storedMarkdown) setViewMode("markdown");
+      }
+    } else if (storedMarkdown) {
+      setViewMode("markdown"); // Fall back to markdown if no PDF
+    }
     
     if (storedResults) {
       try {
@@ -88,14 +121,17 @@ export default function DashboardPage() {
           });
         });
         setViolatedRegulationIds(violatedIds);
-        
-        console.log("Compliance results loaded:", results);
-        console.log("Violated regulation IDs:", Array.from(violatedIds));
-        console.log("Total violations found:", violatedIds.size);
       } catch (error) {
         console.error("Error parsing compliance results:", error);
       }
     }
+    
+    // Cleanup blob URL on unmount
+    return () => {
+      if (pdfBlobUrlRef.current) {
+        URL.revokeObjectURL(pdfBlobUrlRef.current);
+      }
+    };
   }, []);
 
   // Fetch graph data from backend
@@ -211,27 +247,15 @@ export default function DashboardPage() {
         throw new Error("Failed to fix violations");
       }
 
-      // Get the fixed markdown
+      // Get the proposed changes (diffs)
       const fixedResult = await fixResponse.json();
 
-      // IMPORTANT: Save current graph positions before any state updates
-      if (graphRef.current && graphData.nodes.length > 0) {
-        const storageKey = "harmoniq-graph-positions";
-        const positions: any = {};
-        graphData.nodes.forEach((node: any) => {
-          if (node.x !== undefined && node.y !== undefined && node.z !== undefined) {
-            positions[node.id] = { x: node.x, y: node.y, z: node.z };
-          }
-        });
-        sessionStorage.setItem(storageKey, JSON.stringify(positions));
-      }
-
-      // Update to show fixed markdown
-      setMarkdownContent(fixedResult.markdown);
-      sessionStorage.setItem("originalMarkdown", fixedResult.markdown);
+      console.log(`Received ${fixedResult.total_changes} proposed changes`);
       
-      // Clear violations since they're fixed (this will trigger graph regeneration, but positions are saved)
-      setViolatedRegulationIds(new Set());
+      // Store the proposed changes and show diff view
+      setProposedChanges(fixedResult.changes || []);
+      setShowDiffs(true);
+      setViewMode("markdown"); // Switch to markdown view to show diffs
       
     } catch (error) {
       console.error("Error fixing violations:", error);
@@ -545,14 +569,123 @@ export default function DashboardPage() {
       {/* Main Content */}
       <div className="flex h-screen pt-20">
         {/* Left Half - Document Viewer */}
-        <div className="w-1/2 border-r border-blue-500/10 p-4">
-          <div className="h-full overflow-auto rounded-2xl border border-blue-500/10 bg-[#0a0f1e]/50 p-6">
-            {markdownContent ? (
-              <pre className="whitespace-pre-wrap font-sans text-sm text-gray-300 leading-relaxed">
-                {markdownContent}
-              </pre>
+        <div className="w-1/2 border-r border-blue-500/10 p-4 flex flex-col gap-3">
+          {/* Toggle Button */}
+          {(pdfUrl || markdownContent) && (
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-gray-300">Document Viewer</h2>
+              <div className="flex items-center gap-2 rounded-xl bg-[#0a0f1e]/50 p-1 border border-blue-500/10">
+                <button
+                  onClick={() => setViewMode("pdf")}
+                  disabled={!pdfUrl}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200 ${
+                    viewMode === "pdf"
+                      ? "bg-blue-500/20 text-blue-400"
+                      : "text-gray-400 hover:text-gray-300"
+                  } ${!pdfUrl ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                >
+                  PDF
+                </button>
+                <button
+                  onClick={() => setViewMode("markdown")}
+                  disabled={!markdownContent}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200 ${
+                    viewMode === "markdown"
+                      ? "bg-blue-500/20 text-blue-400"
+                      : "text-gray-400 hover:text-gray-300"
+                  } ${!markdownContent ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                >
+                  Markdown
+                </button>
+              </div>
+            </div>
+          )}
+          
+          {/* Content Area */}
+          <div className="flex-1 overflow-hidden rounded-2xl border border-blue-500/10">
+            {viewMode === "pdf" && pdfUrl ? (
+              <iframe
+                src={pdfUrl}
+                className="h-full w-full border-0"
+                title="PDF Viewer"
+              />
+            ) : viewMode === "markdown" && markdownContent ? (
+              <div className="h-full overflow-auto bg-[#0a0f1e]/50 p-6">
+                {/* Proposed Changes Panel */}
+                {showDiffs && proposedChanges.length > 0 && (
+                  <div className="mb-6 rounded-xl border border-blue-500/20 bg-blue-500/5 p-4">
+                    <div className="mb-3 flex items-center justify-between">
+                      <h3 className="text-lg font-bold text-blue-400">
+                        Proposed Changes ({proposedChanges.length})
+                      </h3>
+                      <button
+                        onClick={() => setShowDiffs(false)}
+                        className="rounded-lg bg-red-500/20 px-3 py-1 text-sm text-red-400 hover:bg-red-500/30"
+                      >
+                        Dismiss
+                      </button>
+                    </div>
+                    <div className="space-y-3">
+                      {proposedChanges.map((change, idx) => (
+                        <div key={idx} className="rounded-lg border border-blue-500/10 bg-[#0a0f1e]/50 p-3">
+                          <div className="mb-2 flex items-center gap-2">
+                            <span className={`rounded px-2 py-0.5 text-xs font-semibold ${
+                              change.type === 'replace' ? 'bg-yellow-500/20 text-yellow-400' :
+                              change.type === 'add' ? 'bg-green-500/20 text-green-400' :
+                              'bg-red-500/20 text-red-400'
+                            }`}>
+                              {change.type.toUpperCase()}
+                            </span>
+                            <span className="text-xs text-gray-400">{change.reason}</span>
+                          </div>
+                          {change.type === 'replace' && (
+                            <div className="space-y-1">
+                              <div className="rounded bg-red-500/10 p-2">
+                                <span className="text-xs text-red-400 line-through">{change.original}</span>
+                              </div>
+                              <div className="rounded bg-green-500/10 p-2">
+                                <span className="text-xs text-green-400">{change.replacement}</span>
+                              </div>
+                            </div>
+                          )}
+                          {change.type === 'add' && (
+                            <div className="rounded bg-green-500/10 p-2">
+                              <span className="text-xs text-green-400">+ {change.content}</span>
+                            </div>
+                          )}
+                          {change.type === 'delete' && (
+                            <div className="rounded bg-red-500/10 p-2">
+                              <span className="text-xs text-red-400 line-through">- {change.text}</span>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Markdown Content */}
+                <div className="prose prose-invert prose-sm max-w-none
+                    prose-headings:text-white prose-headings:font-bold
+                    prose-h1:text-2xl prose-h1:mb-4 prose-h1:text-blue-400
+                    prose-h2:text-xl prose-h2:mb-3 prose-h2:text-blue-300
+                    prose-h3:text-lg prose-h3:mb-2 prose-h3:text-blue-200
+                    prose-p:text-gray-300 prose-p:leading-relaxed prose-p:mb-4
+                    prose-strong:text-white prose-strong:font-semibold
+                    prose-ul:text-gray-300 prose-ul:my-4
+                    prose-ol:text-gray-300 prose-ol:my-4
+                    prose-li:my-1
+                    prose-code:text-blue-400 prose-code:bg-blue-500/10 prose-code:px-1 prose-code:py-0.5 prose-code:rounded
+                    prose-pre:bg-[#0a0f1e] prose-pre:border prose-pre:border-blue-500/20
+                    prose-blockquote:border-l-4 prose-blockquote:border-blue-500/50 prose-blockquote:pl-4 prose-blockquote:italic prose-blockquote:text-gray-400
+                    prose-a:text-blue-400 prose-a:no-underline hover:prose-a:text-blue-300">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {markdownContent}
+                  </ReactMarkdown>
+                </div>
+              </div>
             ) : (
-              <div className="flex h-full items-center justify-center">
+              <div className="flex h-full items-center justify-center bg-[#0a0f1e]/50 p-6">
                 <div className="text-center">
                   <svg
                     className="mx-auto mb-4 h-16 w-16 text-gray-500"

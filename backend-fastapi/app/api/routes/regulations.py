@@ -474,20 +474,20 @@ async def fix_pdf_violations(
     compliance_results: str = Form(...),
 ):
     """
-    Fix compliance violations in a PDF by rewriting problematic sections
+    Generate targeted diffs to fix compliance violations
     
     This endpoint:
     1. Converts PDF to Markdown
     2. Identifies chunks with violations
-    3. Uses AI to rewrite each violated chunk to be compliant
-    4. Returns the corrected Markdown with highlighted changes
+    3. Uses AI to generate specific diffs (add/delete/replace)
+    4. Returns list of changes with context
     
     Args:
         file: Original PDF file
         compliance_results: JSON string of compliance check results
         
     Returns:
-        JSON with fixed markdown and metadata
+        JSON with list of diffs and metadata
     """
     import time
     import json
@@ -567,7 +567,7 @@ async def fix_pdf_violations(
                     "missing_elements": v.get("missing_elements", []),
                 })
             
-            # Call fix agent
+            # Call fix agent to generate diffs
             fix_result = await fix_agent.fix_violations(
                 original_text=full_chunk_text,
                 violations=violations_with_context
@@ -575,40 +575,31 @@ async def fix_pdf_violations(
             
             return {
                 "chunk_index": chunk_index,
-                "text": fix_result.get("rewritten_text", full_chunk_text),
-                "was_fixed": True,
-                "violations_fixed": len(violations)
+                "changes": fix_result.get("changes", []),
+                "was_fixed": True if fix_result.get("changes") else False,
+                "violations_addressed": len(violations)
             }
         
         # Process all chunks concurrently
         tasks = [fix_chunk(chunk) for chunk in chunk_results]
         fixed_chunks = await asyncio.gather(*tasks)
         
-        # Sort by chunk index
-        fixed_chunks.sort(key=lambda x: x["chunk_index"])
-        
-        # Generate clean Markdown - reassemble chunks preserving original structure
-        markdown_parts = []
-        
+        # Collect all changes from all chunks
+        all_changes = []
         for chunk in fixed_chunks:
-            text = chunk['text']
-            # Don't strip - preserve whitespace
-            markdown_parts.append(text)
-        
-        # Join chunks directly - they already have proper spacing from the original
-        markdown_content = ''.join(markdown_parts)
+            if chunk.get('changes'):
+                all_changes.extend(chunk['changes'])
         
         processing_time = time.time() - start_time
-        print(f"Markdown generated in {processing_time:.2f} seconds")
+        print(f"Generated {len(all_changes)} changes in {processing_time:.2f} seconds")
         
-        # Return markdown as JSON
+        # Return list of changes as JSON
         return JSONResponse({
-            "markdown": markdown_content,
+            "changes": all_changes,
             "original_filename": file.filename,
-            "violations_fixed": sum(c.get('violations_fixed', 0) for c in fixed_chunks),
+            "total_changes": len(all_changes),
             "processing_time": round(processing_time, 2),
-            "chunks_fixed": sum(1 for c in fixed_chunks if c.get('was_fixed')),
-            "total_chunks": len(fixed_chunks)
+            "chunks_processed": len(fixed_chunks)
         })
         
     except Exception as e:
