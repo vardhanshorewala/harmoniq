@@ -172,6 +172,49 @@ async def get_graph_stats():
     return service.graph_builder.get_stats()
 
 
+@router.get("/graph/data")
+async def get_graph_data():
+    """
+    Get complete knowledge graph data for visualization
+    
+    Returns:
+        Graph data with nodes and edges in a format suitable for visualization
+    """
+    service = get_regulation_service()
+    graph = service.graph_builder.graph
+    
+    # Extract nodes
+    nodes = []
+    for node_id in graph.nodes():
+        node_data = dict(graph.nodes[node_id])
+        nodes.append({
+            "id": node_id,
+            "type": node_data.get("type", "unknown"),
+            "text": node_data.get("text", ""),
+            "section": node_data.get("section", ""),
+            "clause_number": node_data.get("clause_number", ""),
+            "requirement_type": node_data.get("requirement_type", ""),
+            "severity": node_data.get("severity", ""),
+        })
+    
+    # Extract edges
+    edges = []
+    for source, target, edge_data in graph.edges(data=True):
+        edges.append({
+            "source": source,
+            "target": target,
+            "relation": edge_data.get("relation", ""),
+            "confidence": edge_data.get("confidence", 0.0),
+            "source_type": edge_data.get("source", ""),
+        })
+    
+    return {
+        "nodes": nodes,
+        "edges": edges,
+        "stats": service.graph_builder.get_stats(),
+    }
+
+
 @router.post("/check-compliance", response_model=ComplianceCheckResponse)
 async def check_protocol_compliance(request: ComplianceCheckRequest):
     """
