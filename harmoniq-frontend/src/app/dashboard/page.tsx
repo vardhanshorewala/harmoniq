@@ -92,7 +92,7 @@ export default function DashboardPage() {
   useEffect(() => {
     const storedCountry = sessionStorage.getItem("selectedCountry");
     const storedResults = sessionStorage.getItem("complianceResults");
-    
+
     // Load country
     if (storedCountry) {
       console.log("✅ Loading country from sessionStorage:", storedCountry);
@@ -101,7 +101,7 @@ export default function DashboardPage() {
       console.warn("⚠️ No country in sessionStorage, defaulting to USA");
       setSelectedCountry("USA");
     }
-    
+
     // Load violations early
     if (storedResults) {
       try {
@@ -114,18 +114,18 @@ export default function DashboardPage() {
             }
           });
         });
-        
+
         console.log("=== VIOLATIONS LOADED (EARLY) ===");
         console.log("Total violations found:", violatedIds.size);
         console.log("Violated regulation IDs:", Array.from(violatedIds));
         console.log("=== END VIOLATIONS ===");
-        
+
         setViolatedRegulationIds(violatedIds);
       } catch (error) {
         console.error("Error parsing compliance results:", error);
       }
     }
-    
+
     setIsInitialized(true);
   }, []);
 
@@ -184,16 +184,24 @@ export default function DashboardPage() {
   // Fetch graph data from backend (only after initialization)
   useEffect(() => {
     if (!isInitialized || !selectedCountry) {
-      console.log("⏳ Waiting for initialization...", { isInitialized, selectedCountry });
+      console.log("⏳ Waiting for initialization...", {
+        isInitialized,
+        selectedCountry,
+      });
       return;
     }
-    
+
     const fetchGraphData = async () => {
       try {
         setIsLoadingGraph(true);
         const url = `http://localhost:8000/api/regulations/graph/data?country=${selectedCountry}`;
-        console.log("🌍 Fetching graph for country:", selectedCountry, "URL:", url);
-        
+        console.log(
+          "🌍 Fetching graph for country:",
+          selectedCountry,
+          "URL:",
+          url,
+        );
+
         const response = await fetch(url);
 
         if (!response.ok) {
@@ -205,8 +213,14 @@ export default function DashboardPage() {
         console.log("=== GRAPH DATA DEBUG ===");
         console.log("Country requested:", selectedCountry);
         console.log("Total nodes from backend:", data.nodes.length);
-        console.log("Violated regulation IDs:", Array.from(violatedRegulationIds));
-        console.log("Sample graph node IDs:", data.nodes.slice(0, 5).map((n: NodeData) => n.id));
+        console.log(
+          "Violated regulation IDs:",
+          Array.from(violatedRegulationIds),
+        );
+        console.log(
+          "Sample graph node IDs:",
+          data.nodes.slice(0, 5).map((n: NodeData) => n.id),
+        );
 
         // Prioritize violated nodes when capping at 250 for performance
         let cappedNodes: NodeData[];
@@ -220,14 +234,25 @@ export default function DashboardPage() {
             (n: NodeData) => !violatedRegulationIds.has(n.id),
           );
 
-          console.log(`Found ${violatedNodes.length} violated nodes in graph out of ${violatedRegulationIds.size} expected`);
-          
+          console.log(
+            `Found ${violatedNodes.length} violated nodes in graph out of ${violatedRegulationIds.size} expected`,
+          );
+
           if (violatedNodes.length === 0) {
             console.warn("⚠️ NO VIOLATED NODES FOUND IN GRAPH!");
-            console.warn("Expected IDs:", Array.from(violatedRegulationIds).slice(0, 3));
-            console.warn("Available IDs:", data.nodes.slice(0, 3).map((n: NodeData) => n.id));
+            console.warn(
+              "Expected IDs:",
+              Array.from(violatedRegulationIds).slice(0, 3),
+            );
+            console.warn(
+              "Available IDs:",
+              data.nodes.slice(0, 3).map((n: NodeData) => n.id),
+            );
           } else {
-            console.log("✓ Violated nodes found:", violatedNodes.map((n: NodeData) => n.id));
+            console.log(
+              "✓ Violated nodes found:",
+              violatedNodes.map((n: NodeData) => n.id),
+            );
           }
 
           // Take all violated nodes + fill up to 250 with non-violated
@@ -285,18 +310,6 @@ export default function DashboardPage() {
     width: 800,
     height: 600,
   });
-
-  const toggleNodeStatus = (nodeId: string) => {
-    setManuallyToggledNodes((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(nodeId)) {
-        newSet.delete(nodeId);
-      } else {
-        newSet.add(nodeId);
-      }
-      return newSet;
-    });
-  };
 
   const handleFixViolations = async () => {
     if (!complianceResults || violatedRegulationIds.size === 0) {
@@ -1028,35 +1041,6 @@ export default function DashboardPage() {
                     </button>
                   )}
 
-                  {/* Refresh Button */}
-                  <button
-                    onClick={() => {
-                      if (graphRef.current) {
-                        graphRef.current.zoomToFit(1500, 50);
-                      }
-                      // Reset selections and filters
-                      setSelectedNodeId(null);
-                      setManuallyToggledNodes(new Set());
-                      setFilterMode("violations");
-                    }}
-                    className="group flex cursor-pointer items-center justify-center rounded-xl bg-blue-500/10 p-2 transition-all duration-300 hover:scale-105 hover:bg-blue-500/20"
-                    title="Reset view and selections to default"
-                  >
-                    <svg
-                      className="h-5 w-5 text-blue-400 transition-all duration-300 group-hover:text-blue-300"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                      />
-                    </svg>
-                  </button>
-
                   {/* Expand/Collapse - Just chevron */}
                   <button
                     onClick={() =>
@@ -1163,8 +1147,14 @@ export default function DashboardPage() {
 
                       console.log("=== DETAILS PANEL DEBUG ===");
                       console.log("Filter mode:", filterMode);
-                      console.log("Violated nodes found:", violatedNodes.length);
-                      console.log("Nodes to display:", nodesWithViolations.length);
+                      console.log(
+                        "Violated nodes found:",
+                        violatedNodes.length,
+                      );
+                      console.log(
+                        "Nodes to display:",
+                        nodesWithViolations.length,
+                      );
                       console.log("=== END DETAILS PANEL ===");
 
                       return nodesWithViolations.length > 0 ? (
@@ -1412,8 +1402,7 @@ export default function DashboardPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() => toggleNodeStatus(selectedNode.id)}
-                          className={`cursor-pointer rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${(() => {
+                          className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${(() => {
                             const isManuallyToggled = manuallyToggledNodes.has(
                               selectedNode.id,
                             );
@@ -1423,8 +1412,8 @@ export default function DashboardPage() {
                               ? !isOriginallyViolated
                               : isOriginallyViolated;
                             return isViolated
-                              ? "bg-red-500/20 text-red-400 hover:bg-red-500/30"
-                              : "bg-green-500/20 text-green-400 hover:bg-green-500/30";
+                              ? "bg-red-500/20 text-red-400"
+                              : "bg-green-500/20 text-green-400";
                           })()}`}
                         >
                           {(() => {

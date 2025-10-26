@@ -8,7 +8,7 @@ export default function HomePage() {
   const router = useRouter();
   const [isExpanded, setIsExpanded] = useState(false);
   const [showForm, setShowForm] = useState(false);
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [selectedStandard, setSelectedStandard] = useState("all");
   const [selectedRegion, setSelectedRegion] = useState("us");
   const [analysisName, setAnalysisName] = useState("");
@@ -25,10 +25,64 @@ export default function HomePage() {
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      setUploadedFile(file);
+    const files = Array.from(event.target.files || []);
+    if (files.length > 0) {
+      addFiles(files);
     }
+  };
+
+  const addFiles = (newFiles: File[]) => {
+    const validFiles: File[] = [];
+    const allowedTypes = [
+      "image/png",
+      "image/jpeg",
+      "image/jpg",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // XLSX
+      "text/csv",
+      "application/pdf",
+    ];
+
+    const currentPdfCount = uploadedFiles.filter(
+      (file) => file.type === "application/pdf",
+    ).length;
+
+    for (const file of newFiles) {
+      // Check if file type is allowed
+      if (!allowedTypes.includes(file.type)) {
+        alert(
+          `File type ${file.type} is not supported. Please upload PNG, JPG, XLSX, CSV, or PDF files only.`,
+        );
+        continue;
+      }
+
+      // Check PDF limit
+      if (file.type === "application/pdf") {
+        if (currentPdfCount >= 1) {
+          alert(
+            "Only one PDF file is allowed. Please remove the existing PDF before uploading a new one.",
+          );
+          continue;
+        }
+      }
+
+      // Check if file already exists
+      if (
+        !uploadedFiles.some(
+          (existingFile) =>
+            existingFile.name === file.name && existingFile.size === file.size,
+        )
+      ) {
+        validFiles.push(file);
+      }
+    }
+
+    if (validFiles.length > 0) {
+      setUploadedFiles((prev) => [...prev, ...validFiles]);
+    }
+  };
+
+  const removeFile = (index: number) => {
+    setUploadedFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleFileClick = () => {
@@ -37,9 +91,9 @@ export default function HomePage() {
 
   const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
-    const file = event.dataTransfer.files?.[0];
-    if (file?.type === "application/pdf") {
-      setUploadedFile(file);
+    const files = Array.from(event.dataTransfer.files);
+    if (files.length > 0) {
+      addFiles(files);
     }
   };
 
@@ -59,7 +113,23 @@ export default function HomePage() {
   ];
 
   const handleSubmit = async () => {
-    if (!uploadedFile) return;
+    const pdfFiles = uploadedFiles.filter(
+      (file) => file.type === "application/pdf",
+    );
+    if (pdfFiles.length === 0) {
+      alert("Please upload at least one PDF file for analysis.");
+      return;
+    }
+    if (pdfFiles.length > 1) {
+      alert("Only one PDF file is allowed for analysis.");
+      return;
+    }
+
+    const pdfFile = pdfFiles[0];
+    if (!pdfFile) {
+      alert("PDF file not found.");
+      return;
+    }
 
     setIsAnalyzing(true);
     setAnalysisError(null);
@@ -95,7 +165,7 @@ export default function HomePage() {
 
       // Create FormData to send PDF to backend
       const formData = new FormData();
-      formData.append("file", uploadedFile);
+      formData.append("file", pdfFile);
       formData.append("country", countryCode);
       formData.append("top_k", "10");
       formData.append("num_chunks", "12");
@@ -123,7 +193,7 @@ export default function HomePage() {
 
       // Convert PDF to Markdown for display
       const markdownFormData = new FormData();
-      markdownFormData.append("file", uploadedFile);
+      markdownFormData.append("file", pdfFile);
 
       const markdownResponse = await fetch(
         "http://localhost:8000/api/regulations/pdf-to-markdown",
@@ -139,8 +209,8 @@ export default function HomePage() {
       }
 
       // Store file info and actual file data in sessionStorage
-      sessionStorage.setItem("uploadedFileName", uploadedFile.name);
-      sessionStorage.setItem("uploadedFileSize", uploadedFile.size.toString());
+      sessionStorage.setItem("uploadedFileName", pdfFile.name);
+      sessionStorage.setItem("uploadedFileSize", pdfFile.size.toString());
 
       // Convert file to base64 and store for later use
       const reader = new FileReader();
@@ -148,7 +218,7 @@ export default function HomePage() {
         const base64data = reader.result as string;
         sessionStorage.setItem("uploadedFileData", base64data);
       };
-      reader.readAsDataURL(uploadedFile);
+      reader.readAsDataURL(pdfFile);
 
       // Navigate to dashboard
       router.push("/dashboard");
@@ -197,12 +267,12 @@ export default function HomePage() {
 
       {/* Welcome Message - only show when not expanded */}
       {!isExpanded && (
-        <div className="animate-in fade-in slide-in-from-bottom-4 absolute inset-x-0 top-[30%] text-center duration-700">
-          <h1 className="mb-6 text-6xl font-bold text-white">
-            Hello, Johnson!
+        <div className="animate-in fade-in slide-in-from-bottom-4 absolute inset-x-0 top-[40%] text-center duration-700">
+          <h1 className="mb-3 text-6xl font-bold text-white">
+            Good Afternoon!
           </h1>
-          <p className="mb-2 text-xl text-gray-300">
-            I&apos;m here to help you fast track compliance.
+          <p className="mb-8 text-xl text-gray-300">
+            I&apos;m here to help you fast-track cross-border compliance.
           </p>
           {/* <p className="mb-8 text-base text-gray-500">
             Let's compare regulatory excerpts against clinical documents.
@@ -294,7 +364,8 @@ export default function HomePage() {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".pdf"
+                accept=".png,.jpg,.jpeg,.xlsx,.csv,.pdf"
+                multiple
                 onChange={handleFileUpload}
                 className="hidden"
               />
@@ -304,35 +375,98 @@ export default function HomePage() {
                 onDragOver={handleDragOver}
                 className="group hover:blue-glow flex cursor-pointer items-center justify-center rounded-2xl border-2 border-dashed border-blue-500/20 bg-blue-600/5 p-12 transition-all duration-300 hover:border-blue-500/50 hover:bg-blue-600/10"
               >
-                {uploadedFile ? (
-                  <div className="text-center">
-                    <svg
-                      className="mx-auto mb-4 h-16 w-16 text-green-400"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={1.5}
-                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                      />
-                    </svg>
-                    <p className="mb-1 text-base font-medium text-white">
-                      {uploadedFile.name}
-                    </p>
-                    <p className="text-sm text-gray-400">
-                      {(uploadedFile.size / 1024 / 1024).toFixed(2)} MB
-                    </p>
+                {uploadedFiles.length > 0 ? (
+                  <div className="w-full">
+                    <div className="mb-4 flex items-center justify-center">
+                      <svg
+                        className="h-8 w-8 text-green-400"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={1.5}
+                          d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                    </div>
+                    <div className="space-y-2">
+                      {uploadedFiles.map((file, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center justify-between rounded-lg bg-blue-600/10 p-3"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-8 w-8 items-center justify-center rounded bg-blue-500/20">
+                              {file.type === "application/pdf" ? (
+                                <svg
+                                  className="h-4 w-4 text-red-400"
+                                  fill="currentColor"
+                                  viewBox="0 0 20 20"
+                                >
+                                  <path
+                                    fillRule="evenodd"
+                                    d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z"
+                                    clipRule="evenodd"
+                                  />
+                                </svg>
+                              ) : file.type.startsWith("image/") ? (
+                                <svg
+                                  className="h-4 w-4 text-blue-400"
+                                  fill="currentColor"
+                                  viewBox="0 0 20 20"
+                                >
+                                  <path
+                                    fillRule="evenodd"
+                                    d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z"
+                                    clipRule="evenodd"
+                                  />
+                                </svg>
+                              ) : (
+                                <svg
+                                  className="h-4 w-4 text-green-400"
+                                  fill="currentColor"
+                                  viewBox="0 0 20 20"
+                                >
+                                  <path
+                                    fillRule="evenodd"
+                                    d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z"
+                                    clipRule="evenodd"
+                                  />
+                                </svg>
+                              )}
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-white">
+                                {file.name}
+                              </p>
+                              <p className="text-xs text-gray-400">
+                                {(file.size / 1024 / 1024).toFixed(2)} MB
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeFile(index);
+                            }}
+                            className="cursor-pointer text-xs text-red-400 hover:text-red-300"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                    </div>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        setUploadedFile(null);
+                        setUploadedFiles([]);
                       }}
                       className="mt-3 cursor-pointer text-xs text-red-400 hover:text-red-300"
                     >
-                      Remove file
+                      Remove all files
                     </button>
                   </div>
                 ) : (
@@ -354,9 +488,11 @@ export default function HomePage() {
                       Click to upload or drag and drop
                     </p>
                     <p className="mb-2 text-sm text-gray-400">
-                      ICF / SAP / CSR / Protocol
+                      PNG, JPG, XLSX, CSV, PDF files
                     </p>
-                    <p className="text-xs text-gray-500">PDF up to 10MB</p>
+                    <p className="text-xs text-gray-500">
+                      Maximum 1 PDF file required for analysis
+                    </p>
                   </div>
                 )}
               </div>
@@ -606,9 +742,13 @@ export default function HomePage() {
             {/* Submit Button */}
             <button
               onClick={handleSubmit}
-              disabled={!uploadedFile || isAnalyzing}
+              disabled={
+                uploadedFiles.filter((f) => f.type === "application/pdf")
+                  .length !== 1 || isAnalyzing
+              }
               className={`group mt-2 w-full cursor-pointer rounded-xl border px-6 py-4 text-base font-semibold transition-all duration-300 ${
-                uploadedFile && !isAnalyzing
+                uploadedFiles.filter((f) => f.type === "application/pdf")
+                  .length === 1 && !isAnalyzing
                   ? "hover:blue-glow border-blue-500/30 bg-transparent text-blue-400 hover:border-blue-500/60 hover:bg-blue-600/20 hover:text-blue-300"
                   : "cursor-not-allowed border-gray-600/30 bg-transparent text-gray-600"
               }`}
