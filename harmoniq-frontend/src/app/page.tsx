@@ -44,18 +44,73 @@ export default function HomePage() {
     event.preventDefault();
   };
 
-  const handleSubmit = () => {
-    if (uploadedFile) {
-      // Store file info in sessionStorage
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+
+  const handleSubmit = async () => {
+    if (!uploadedFile) return;
+
+    setIsAnalyzing(true);
+    setAnalysisError(null);
+
+    try {
+      // Create FormData to send PDF to backend
+      const formData = new FormData();
+      formData.append("file", uploadedFile);
+      formData.append("country", "USA");
+      formData.append("top_k", "10");
+      formData.append("num_chunks", "12");
+      formData.append("compliance_focus", selectedStandard);
+
+      // Send to backend for compliance checking
+      const response = await fetch("http://localhost:8000/api/regulations/check-pdf-compliance", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || "Failed to analyze PDF");
+      }
+
+      const result = await response.json();
+
+      // Store compliance results in sessionStorage
+      sessionStorage.setItem("complianceResults", JSON.stringify(result));
+      
+      // Convert PDF to Markdown for display
+      const markdownFormData = new FormData();
+      markdownFormData.append("file", uploadedFile);
+      
+      const markdownResponse = await fetch("http://localhost:8000/api/regulations/pdf-to-markdown", {
+        method: "POST",
+        body: markdownFormData,
+      });
+      
+      if (markdownResponse.ok) {
+        const markdownResult = await markdownResponse.json();
+        sessionStorage.setItem("originalMarkdown", markdownResult.markdown);
+      }
+      
+      // Store file info and actual file data in sessionStorage
       sessionStorage.setItem("uploadedFileName", uploadedFile.name);
       sessionStorage.setItem("uploadedFileSize", uploadedFile.size.toString());
-
-      // Create object URL for the PDF
-      const fileUrl = URL.createObjectURL(uploadedFile);
-      sessionStorage.setItem("uploadedFileUrl", fileUrl);
+      
+      // Convert file to base64 and store for later use
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64data = reader.result as string;
+        sessionStorage.setItem("uploadedFileData", base64data);
+      };
+      reader.readAsDataURL(uploadedFile);
 
       // Navigate to dashboard
       router.push("/dashboard");
+    } catch (error) {
+      console.error("Error analyzing PDF:", error);
+      setAnalysisError(error instanceof Error ? error.message : "Failed to analyze PDF");
+    } finally {
+      setIsAnalyzing(false);
     }
   };
 
@@ -404,32 +459,54 @@ export default function HomePage() {
               </div>
             </div>
 
+            {/* Error Message */}
+            {analysisError && (
+              <div className="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 p-4">
+                <div className="flex items-center gap-2 text-red-400">
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p className="text-sm">{analysisError}</p>
+                </div>
+              </div>
+            )}
+
             {/* Submit Button */}
             <button
               onClick={handleSubmit}
-              disabled={!uploadedFile}
+              disabled={!uploadedFile || isAnalyzing}
               className={`group mt-2 w-full cursor-pointer rounded-xl border px-6 py-4 text-base font-semibold transition-all duration-300 ${
-                uploadedFile
+                uploadedFile && !isAnalyzing
                   ? "hover:blue-glow border-blue-500/30 bg-transparent text-blue-400 hover:border-blue-500/60 hover:bg-blue-600/20 hover:text-blue-300"
                   : "cursor-not-allowed border-gray-600/30 bg-transparent text-gray-600"
               }`}
             >
-              <span className="inline-flex items-center gap-2 transition-all duration-300 group-hover:scale-105">
-                Analyze Compliance
-                <svg
-                  className="h-5 w-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M13 7l5 5m0 0l-5 5m5-5H6"
-                  />
-                </svg>
-              </span>
+              {isAnalyzing ? (
+                <span className="inline-flex items-center gap-3">
+                  <svg className="h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Analyzing PDF...
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-2 transition-all duration-300 group-hover:scale-105">
+                  Analyze Compliance
+                  <svg
+                    className="h-5 w-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M13 7l5 5m0 0l-5 5m5-5H6"
+                    />
+                  </svg>
+                </span>
+              )}
             </button>
           </div>
         </div>

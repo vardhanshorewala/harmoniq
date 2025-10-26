@@ -52,20 +52,50 @@ interface GraphLink {
 export default function DashboardPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [markdownContent, setMarkdownContent] = useState<string>("");
   const [fileName, setFileName] = useState<string>("");
 
   const [nodes, setNodes] = useState<NodeData[]>([]);
   const [edges, setEdges] = useState<EdgeData[]>([]);
   const [isLoadingGraph, setIsLoadingGraph] = useState(true);
   const [isDetailsPanelExpanded, setIsDetailsPanelExpanded] = useState(false);
+  const [complianceResults, setComplianceResults] = useState<any>(null);
+  const [violatedRegulationIds, setViolatedRegulationIds] = useState<Set<string>>(new Set());
+  const [isFixingViolations, setIsFixingViolations] = useState(false);
+  const [fixError, setFixError] = useState<string | null>(null);
 
-  // Load PDF from sessionStorage
+  // Load markdown and compliance results from sessionStorage
   useEffect(() => {
-    const storedUrl = sessionStorage.getItem("uploadedFileUrl");
+    const storedMarkdown = sessionStorage.getItem("originalMarkdown");
     const storedName = sessionStorage.getItem("uploadedFileName");
-    if (storedUrl) setPdfUrl(storedUrl);
+    const storedResults = sessionStorage.getItem("complianceResults");
+    
+    if (storedMarkdown) setMarkdownContent(storedMarkdown);
     if (storedName) setFileName(storedName);
+    
+    if (storedResults) {
+      try {
+        const results = JSON.parse(storedResults);
+        setComplianceResults(results);
+        
+        // Extract all violated regulation IDs
+        const violatedIds = new Set<string>();
+        results.chunk_results?.forEach((chunk: any) => {
+          chunk.violations?.forEach((violation: any) => {
+            if (violation.regulation_id) {
+              violatedIds.add(violation.regulation_id);
+            }
+          });
+        });
+        setViolatedRegulationIds(violatedIds);
+        
+        console.log("Compliance results loaded:", results);
+        console.log("Violated regulation IDs:", Array.from(violatedIds));
+        console.log("Total violations found:", violatedIds.size);
+      } catch (error) {
+        console.error("Error parsing compliance results:", error);
+      }
+    }
   }, []);
 
   // Fetch graph data from backend
@@ -81,8 +111,31 @@ export default function DashboardPage() {
         
         const data = await response.json();
         
-        // Cap at 250 nodes for performance
-        const cappedNodes = data.nodes.slice(0, 250);
+        // Prioritize violated nodes when capping at 250 for performance
+        let cappedNodes: NodeData[];
+        
+        if (violatedRegulationIds.size > 0) {
+          // Separate violated and non-violated nodes
+          const violatedNodes = data.nodes.filter((n: NodeData) => 
+            violatedRegulationIds.has(n.id)
+          );
+          const nonViolatedNodes = data.nodes.filter((n: NodeData) => 
+            !violatedRegulationIds.has(n.id)
+          );
+          
+          // Take all violated nodes + fill up to 250 with non-violated
+          const remainingSlots = Math.max(0, 250 - violatedNodes.length);
+          cappedNodes = [
+            ...violatedNodes,
+            ...nonViolatedNodes.slice(0, remainingSlots)
+          ];
+          
+          console.log(`Prioritized ${violatedNodes.length} violated nodes in graph`);
+        } else {
+          // No violations, just take first 250
+          cappedNodes = data.nodes.slice(0, 250);
+        }
+        
         const nodeIds = new Set(cappedNodes.map((n: NodeData) => n.id));
         
         // Filter edges to only include edges between the capped nodes
@@ -92,6 +145,9 @@ export default function DashboardPage() {
         
         setNodes(cappedNodes);
         setEdges(cappedEdges);
+        
+        console.log("Graph nodes loaded:", cappedNodes.length);
+        console.log("Sample node IDs:", cappedNodes.slice(0, 5).map((n: NodeData) => n.id));
       } catch (error) {
         console.error("Error fetching graph data:", error);
         // Keep empty arrays on error
@@ -103,7 +159,7 @@ export default function DashboardPage() {
     };
 
     fetchGraphData();
-  }, []);
+  }, [violatedRegulationIds]);
   const [graphData, setGraphData] = useState<{
     nodes: GraphNode[];
     links: GraphLink[];
@@ -119,6 +175,70 @@ export default function DashboardPage() {
 
   const handleProfileClick = () => {
     setShowProfileMenu(!showProfileMenu);
+  };
+
+  const handleFixViolations = async () => {
+    if (!complianceResults || violatedRegulationIds.size === 0) {
+      return;
+    }
+
+    setIsFixingViolations(true);
+    setFixError(null);
+
+    try {
+      // Get the original PDF file data from sessionStorage
+      const storedFileData = sessionStorage.getItem("uploadedFileData");
+      if (!storedFileData) {
+        throw new Error("Original PDF not found");
+      }
+      
+      // Convert base64 back to blob
+      const base64Response = await fetch(storedFileData);
+      const blob = await base64Response.blob();
+      
+      // Create FormData
+      const formData = new FormData();
+      formData.append("file", blob, fileName || "protocol.pdf");
+      formData.append("compliance_results", JSON.stringify(complianceResults));
+
+      // Send to backend
+      const fixResponse = await fetch("http://localhost:8000/api/regulations/fix-pdf-violations", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!fixResponse.ok) {
+        throw new Error("Failed to fix violations");
+      }
+
+      // Get the fixed markdown
+      const fixedResult = await fixResponse.json();
+
+      // IMPORTANT: Save current graph positions before any state updates
+      if (graphRef.current && graphData.nodes.length > 0) {
+        const storageKey = "harmoniq-graph-positions";
+        const positions: any = {};
+        graphData.nodes.forEach((node: any) => {
+          if (node.x !== undefined && node.y !== undefined && node.z !== undefined) {
+            positions[node.id] = { x: node.x, y: node.y, z: node.z };
+          }
+        });
+        sessionStorage.setItem(storageKey, JSON.stringify(positions));
+      }
+
+      // Update to show fixed markdown
+      setMarkdownContent(fixedResult.markdown);
+      sessionStorage.setItem("originalMarkdown", fixedResult.markdown);
+      
+      // Clear violations since they're fixed (this will trigger graph regeneration, but positions are saved)
+      setViolatedRegulationIds(new Set());
+      
+    } catch (error) {
+      console.error("Error fixing violations:", error);
+      setFixError(error instanceof Error ? error.message : "Failed to fix violations");
+    } finally {
+      setIsFixingViolations(false);
+    }
   };
 
   // Track container dimensions for proper graph centering
@@ -283,10 +403,13 @@ export default function DashboardPage() {
       };
       const nodeSize = sizeMap[node.severity] || 10;
 
-      // Color nodes based on type (all blue variants)
+      // Color nodes based on violation status
       let color = "rgba(59, 130, 246, 0.9)"; // Default blue
-      if (node.type === "clause") {
-        color = "rgba(59, 130, 246, 0.9)"; // Bright blue
+      
+      // Check if this node is a violated regulation
+      if (violatedRegulationIds.has(node.id)) {
+        color = "rgba(239, 68, 68, 0.95)"; // Red for violations
+        console.log("Found violated node:", node.id);
       }
 
       return {
@@ -307,7 +430,11 @@ export default function DashboardPage() {
     }));
 
     setGraphData({ nodes: newGraphNodes, links: newGraphLinks });
-  }, [nodes, edges]);
+    
+    const violatedCount = newGraphNodes.filter(n => n.color.includes("239, 68, 68")).length;
+    console.log(`Graph generated: ${newGraphNodes.length} nodes, ${violatedCount} violated (red)`);
+    console.log(`Expected violations: ${violatedRegulationIds.size}`);
+  }, [nodes, edges, violatedRegulationIds]);
 
   useEffect(() => {
     generateGraphData();
@@ -417,17 +544,15 @@ export default function DashboardPage() {
 
       {/* Main Content */}
       <div className="flex h-screen pt-20">
-        {/* Left Half - PDF Viewer */}
+        {/* Left Half - Document Viewer */}
         <div className="w-1/2 border-r border-blue-500/10 p-4">
-          <div className="h-full overflow-hidden rounded-2xl border border-blue-500/10">
-            {pdfUrl ? (
-              <iframe
-                src={pdfUrl}
-                className="h-full w-full border-0"
-                title="PDF Viewer"
-              />
+          <div className="h-full overflow-auto rounded-2xl border border-blue-500/10 bg-[#0a0f1e]/50 p-6">
+            {markdownContent ? (
+              <pre className="whitespace-pre-wrap font-sans text-sm text-gray-300 leading-relaxed">
+                {markdownContent}
+              </pre>
             ) : (
-              <div className="flex h-full items-center justify-center bg-[#0a0f1e]/50 p-6">
+              <div className="flex h-full items-center justify-center">
                 <div className="text-center">
                   <svg
                     className="mx-auto mb-4 h-16 w-16 text-gray-500"
@@ -442,7 +567,7 @@ export default function DashboardPage() {
                       d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                     />
                   </svg>
-                  <p className="text-sm text-gray-400">No PDF uploaded yet</p>
+                  <p className="text-sm text-gray-400">No document uploaded yet</p>
                   <p className="mt-2 text-xs text-gray-500">
                     Upload a document from the home page
                   </p>
@@ -472,35 +597,88 @@ export default function DashboardPage() {
               {/* Header with Toggle */}
               <div className="flex items-center justify-between p-4">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500/20 to-purple-500/20 backdrop-blur-xl">
-                    <svg
-                      className="h-5 w-5 text-blue-400"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                      />
-                    </svg>
+                  <div className={`flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br backdrop-blur-xl ${
+                    violatedRegulationIds.size > 0 
+                      ? "from-red-500/20 to-red-600/20" 
+                      : "from-green-500/20 to-green-600/20"
+                  }`}>
+                    {violatedRegulationIds.size > 0 ? (
+                      <svg
+                        className="h-5 w-5 text-red-400"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                    ) : (
+                      <svg
+                        className="h-5 w-5 text-green-400"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                    )}
                   </div>
                   <div className="overflow-hidden">
-                    <h3 className="text-sm font-semibold text-white transition-all duration-300">
-                      {isDetailsPanelExpanded ? "Regulation Details" : "Key Regulations"}
+                    <h3 className={`text-sm font-semibold transition-all duration-300 ${
+                      violatedRegulationIds.size > 0 ? "text-red-400" : "text-green-400"
+                    }`}>
+                      {violatedRegulationIds.size > 0 
+                        ? (isDetailsPanelExpanded ? "Compliance Violations" : "Violations Detected")
+                        : "All Compliant"}
                     </h3>
                     <p className="text-xs text-gray-400 transition-all duration-300">
-                      {stats.total} nodes • {stats.highSeverity} high severity
+                      {violatedRegulationIds.size > 0 
+                        ? `${violatedRegulationIds.size} violations • ${complianceResults?.critical_violations || 0} critical`
+                        : `${stats.total} regulations checked • 0 violations`}
                     </p>
                   </div>
                 </div>
                 
-                <button
-                  onClick={() => setIsDetailsPanelExpanded(!isDetailsPanelExpanded)}
-                  className="group flex items-center gap-2 rounded-xl bg-blue-500/10 px-4 py-2 text-sm font-medium text-blue-400 transition-all duration-300 hover:bg-blue-500/20 hover:text-blue-300 hover:scale-105"
-                >
+                <div className="flex items-center gap-2">
+                  {/* Fix Violations Button - only show if there are violations */}
+                  {violatedRegulationIds.size > 0 && (
+                    <button
+                      onClick={handleFixViolations}
+                      disabled={isFixingViolations}
+                      className="group flex items-center gap-2 rounded-xl bg-green-500/10 px-4 py-2 text-sm font-medium text-green-400 transition-all duration-300 hover:bg-green-500/20 hover:text-green-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isFixingViolations ? (
+                        <>
+                          <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          <span>Fixing...</span>
+                        </>
+                      ) : (
+                        <>
+                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <span>Fix Violations</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                  
+                  <button
+                    onClick={() => setIsDetailsPanelExpanded(!isDetailsPanelExpanded)}
+                    className="group flex items-center gap-2 rounded-xl bg-blue-500/10 px-4 py-2 text-sm font-medium text-blue-400 transition-all duration-300 hover:bg-blue-500/20 hover:text-blue-300 hover:scale-105"
+                  >
                   <span className="transition-all duration-200">{isDetailsPanelExpanded ? "Collapse" : "Expand"}</span>
                   <svg
                     className={`h-4 w-4 transition-transform duration-[450ms] ease-[cubic-bezier(0.25,0.46,0.45,0.94)] ${
@@ -518,6 +696,7 @@ export default function DashboardPage() {
                     />
                   </svg>
                 </button>
+                </div>
               </div>
 
               {/* Content */}
@@ -536,11 +715,30 @@ export default function DashboardPage() {
                 >
               {isLoadingGraph ? (
                 <div className="text-sm text-gray-400">Loading graph data...</div>
-              ) : nodes.filter((n) => n.severity === "high" || n.severity === "critical").length > 0 ? (
-                nodes
-                  .filter((n) => n.severity === "high" || n.severity === "critical")
-                  .slice(0, isDetailsPanelExpanded ? undefined : 10)
-                  .map((node) => (
+              ) : (() => {
+                // Get violated nodes with their violation details
+                const violatedNodes = nodes.filter((n) => violatedRegulationIds.has(n.id));
+                
+                // Get violation details for each node
+                const nodesWithViolations = violatedNodes.map((node) => {
+                  const violations: any[] = [];
+                  complianceResults?.chunk_results?.forEach((chunk: any) => {
+                    chunk.violations?.forEach((v: any) => {
+                      if (v.regulation_id === node.id) {
+                        violations.push({
+                          ...v,
+                          chunk_text: chunk.chunk_text,
+                        });
+                      }
+                    });
+                  });
+                  return { node, violations };
+                });
+                
+                return nodesWithViolations.length > 0 ? (
+                  nodesWithViolations
+                    .slice(0, isDetailsPanelExpanded ? undefined : 10)
+                    .map(({ node, violations }) => (
                     <div
                       key={node.id}
                       onClick={() => {
@@ -569,74 +767,81 @@ export default function DashboardPage() {
                       style={!isDetailsPanelExpanded ? { minWidth: "240px" } : {}}
                     >
                       <div className="mb-3 flex items-start justify-between">
-                        <div className="flex items-center gap-2">
-                          <div
-                            className={`flex h-8 w-8 items-center justify-center rounded-xl text-sm font-bold ${
-                              node.severity === "critical"
-                                ? "bg-gradient-to-br from-red-500/20 to-red-600/30 text-red-400"
-                                : "bg-gradient-to-br from-yellow-500/20 to-yellow-600/30 text-yellow-400"
-                            }`}
-                          >
-                            {node.severity === "critical" ? "✕" : "⚠"}
-                          </div>
-                          <div className="flex-1">
-                            <h4 className="text-sm font-bold text-white">
-                              {node.section || node.clause_number}
-                            </h4>
-                            <p className="text-xs text-gray-500">
-                              {node.requirement_type || "N/A"}
-                            </p>
-                          </div>
+                        <div className="flex-1">
+                          <h4 className="text-sm font-bold text-white">
+                            {node.section || node.clause_number}
+                          </h4>
+                          <p className="text-xs text-red-400 font-semibold">
+                            VIOLATION DETECTED
+                          </p>
                         </div>
-                        <span
-                          className={`rounded-lg px-2 py-1 text-xs font-semibold ${
-                            node.severity === "critical"
-                              ? "bg-red-500/20 text-red-400"
-                              : "bg-yellow-500/20 text-yellow-400"
-                          }`}
-                        >
+                        <span className="rounded-lg px-2 py-1 text-xs font-semibold bg-red-500/20 text-red-400">
                           {node.severity}
                         </span>
                       </div>
-                      <p
-                        className={`text-xs leading-relaxed text-gray-400 ${
-                          isDetailsPanelExpanded ? "line-clamp-3" : ""
-                        }`}
-                      >
-                        {isDetailsPanelExpanded
-                          ? node.text.substring(0, 200) + (node.text.length > 200 ? "..." : "")
-                          : node.text.substring(0, 60) + "..."}
-                      </p>
+                      
+                      {/* Regulation Text */}
+                      <div className={isDetailsPanelExpanded ? "mb-3" : ""}>
+                        <p className="text-xs font-semibold text-gray-300 mb-1">Regulation Requirement:</p>
+                        <p className={`text-xs leading-relaxed text-gray-400 ${
+                          isDetailsPanelExpanded ? "line-clamp-2" : "line-clamp-1"
+                        }`}>
+                          {node.text}
+                        </p>
+                      </div>
+                      
+                      {/* Violated Protocol Text - Only show when expanded */}
+                      {isDetailsPanelExpanded && violations.length > 0 && (
+                        <div className="rounded-lg bg-red-500/5 border border-red-500/20 p-2">
+                          <p className="text-xs font-semibold text-red-300 mb-1">
+                            Violated Text from Protocol:
+                          </p>
+                          <p className="text-xs leading-relaxed text-gray-300">
+                            {violations[0].chunk_text}
+                          </p>
+                          {violations[0].explanation && (
+                            <p className="text-xs text-gray-400 mt-2 italic">
+                              {violations[0].explanation}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      
                       {isDetailsPanelExpanded && (
-                        <div className="mt-3 flex items-center justify-between border-t border-blue-500/10 pt-3">
+                        <div className="mt-3 flex items-center justify-between border-t border-red-500/10 pt-3">
                           <div className="text-xs text-gray-500">
-                            Node ID: <span className="font-mono text-blue-400">{node.id.split('-').pop()}</span>
+                            Non-compliance: <span className="font-mono text-red-400">
+                              {Math.round((violations[0]?.non_compliance_probability || 0) * 100)}%
+                            </span>
                           </div>
-                          <button className="text-xs font-medium text-blue-400 hover:text-blue-300">
+                          <button className="text-xs font-medium text-red-400 hover:text-red-300">
                             View Details →
                           </button>
                         </div>
                       )}
                     </div>
                   ))
-              ) : (
-                <div className="flex items-center gap-2 text-sm text-gray-400">
-                  <svg
-                    className="h-5 w-5 text-blue-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
-                  Graph loaded: {stats.total} nodes
-                </div>
-              )}
+                ) : (
+                  <div className="flex items-center gap-2 text-sm text-gray-400">
+                    <svg
+                      className="h-5 w-5 text-green-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                    <span className="text-green-400">
+                      No violations detected! Document is compliant.
+                    </span>
+                  </div>
+                );
+              })()}
                 </div>
               </div>
             </div>
@@ -831,17 +1036,19 @@ export default function DashboardPage() {
 
                 const isHovered = hoveredNode?.id === node.id;
                 const isSelected = selectedNodeId === node.id;
+                const isViolation = node.color.includes("239, 68, 68"); // Check if red (violation)
 
                   // Create sphere geometry with safe values
                   const nodeSize = Math.max(5, Math.min(node.val || 10, 50)); // Clamp between 5 and 50
                   const geometry = new THREE.SphereGeometry(nodeSize, 32, 32);
 
-                // Create material with blue glow
+                // Create material with appropriate color (red for violations, blue otherwise)
+                const nodeColor = isViolation ? 0xef4444 : 0x3b82f6;
                 const material = new THREE.MeshPhongMaterial({
-                  color: 0x3b82f6, // Always blue
+                  color: nodeColor,
                   transparent: true,
                   opacity: isHovered || isSelected ? 1 : 0.8,
-                  emissive: 0x3b82f6, // Blue emissive
+                  emissive: nodeColor,
                   emissiveIntensity: isHovered || isSelected ? 0.6 : 0.3,
                   shininess: 150,
                 });
@@ -859,7 +1066,7 @@ export default function DashboardPage() {
                   32,
                 );
                 const glowMaterial = new THREE.MeshBasicMaterial({
-                  color: 0x3b82f6,
+                  color: nodeColor,
                   transparent: true,
                   opacity: isHovered || isSelected ? 0.2 : 0.1,
                   side: THREE.BackSide,
