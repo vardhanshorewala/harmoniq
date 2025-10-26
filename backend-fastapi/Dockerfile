@@ -38,8 +38,15 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copy application code
 COPY app ./app
-COPY data ./data
-COPY process_regulations.py ./
+
+# Copy and unzip data
+COPY data.zip ./
+RUN apt-get update && apt-get install -y unzip && \
+    unzip -q data.zip && \
+    rm data.zip && \
+    apt-get remove -y unzip && \
+    apt-get autoremove -y && \
+    rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user
 RUN useradd -m -u 1000 harmoniq && \
