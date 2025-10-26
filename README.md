@@ -2,405 +2,242 @@
 
 **Intelligent Clinical Trial Compliance Platform**
 
-Harmoniq automatically maps regulatory requirements (FDA, EMA, PMDA) to clinical trial protocols using knowledge graphs and advanced retrieval techniques. When regulations change, instantly identify which protocols, clauses, and studies are impacted—eliminating weeks of manual document review.
+Harmoniq automatically maps regulatory requirements (FDA, EMA, PMDA) to clinical trial protocols using hybrid HippoRAG/GraphRAG retrieval with knowledge graphs. When regulations change, instantly identify which protocols are impacted—eliminating weeks of manual document review.
 
 ---
 
-## 🎯 The Problem
+## Problem Statement
 
-**Current Reality for Clinical Research Organizations (CROs):**
+**Current Reality for Clinical Research Organizations:**
 
 - **160+ days lost** when FDA/EMA regulations change
 - **Manual review** of hundreds of pages across thousands of protocol versions
-- **Weeks of work** to find which trial clauses are impacted by new rules
-- **Traditional vector search fails** to capture relationships between regulations
-- **Unstructured, messy documents** with inconsistent formatting
-- Each delay costs **$6M+ per day** in lost drug development time
+- **$6M+ per day** in lost drug development time
+- Traditional vector search fails to capture regulatory relationships and dependencies
 
 **Example Scenario:**
 ```
-FDA updates 21 CFR Part 50 (Informed Consent requirements)
+FDA updates 21 CFR Part 50 (Informed Consent)
 ↓
-Which protocols are affected?
-Which countries need updates?
-Which clauses need revision?
-Which trials are at risk?
-```
-
-Current solutions require **weeks of manual auditing**. Harmoniq provides answers **in seconds**.
-
----
-
-## 💡 The Solution
-
-Harmoniq uses **Knowledge Graphs + HippoRAG** to:
-
-1. **Extract atomic requirements** from messy, unstructured regulation PDFs
-2. **Build semantic relationship graphs** between requirements (LLM-powered)
-3. **Retrieve relevant regulations** using hybrid vector + graph search (Personalized PageRank)
-4. **Check protocol compliance** with AI agents that understand regulatory context
-5. **Generate targeted fixes** for violations automatically
-6. **Support multi-jurisdictional compliance** (USA/FDA, EU/EMA, Japan/PMDA)
-
-### Key Innovation: HippoRAG-Inspired Retrieval
-
-Unlike traditional RAG systems that only use vector similarity, Harmoniq combines:
-
-- **Vector Search** (ChromaDB): "What regulations mention similar concepts?"
-- **Graph Propagation** (Personalized PageRank): "What else is connected through dependencies?"
-- **Agent Analysis**: "Is this protocol actually compliant?"
-- **Multi-Violation Detection**: One chunk can violate multiple regulations simultaneously
-
-This finds **indirect relationships** that pure vector search misses.
-
----
-
-## 🌍 Multi-Jurisdictional Support
-
-Harmoniq supports compliance checking across multiple regulatory authorities:
-
-| Region | Authority | Status |
-|--------|-----------|--------|
-| 🇺🇸 **USA** | FDA | ✅ Active |
-| 🇪🇺 **Europe** | EMA | ✅ Active |
-| 🇯🇵 **Japan** | PMDA | ✅ Active |
-
-Each region has:
-- **Dedicated ChromaDB** instance for vector storage
-- **Separate knowledge graph** with region-specific regulations
-- **Country-specific routing** in API endpoints
-
----
-
-## 🏗️ Full-Stack Architecture
-
-### System Overview
-
-```mermaid
-graph TB
-    subgraph "Frontend - Next.js"
-        UI[User Interface]
-        UPLOAD[Document Upload]
-        VIZ[3D Graph Visualization]
-        DASH[Compliance Dashboard]
-    end
-    
-    subgraph "Backend - FastAPI"
-        API[REST API Endpoints]
-        ROUTE[Country-Specific Routing]
-    end
-    
-    subgraph "Processing Layer"
-        AGENT1[Semantic Parser Agent]
-        AGENT2[Relationship Agent]
-        AGENT3[Compliance Agent]
-        AGENT4[Violation Fix Agent]
-    end
-    
-    subgraph "Storage Layer - Per Country"
-        VDB_USA[(ChromaDB USA)]
-        VDB_EU[(ChromaDB EU)]
-        VDB_JP[(ChromaDB Japan)]
-        GRAPH_USA[(Graph USA)]
-        GRAPH_EU[(Graph EU)]
-        GRAPH_JP[(Graph Japan)]
-    end
-    
-    subgraph "Retrieval Layer"
-        VSEARCH[Vector Search]
-        PPR[Personalized PageRank]
-        HYBRID[HippoRAG Fusion]
-    end
-    
-    UI --> UPLOAD
-    UPLOAD --> API
-    API --> ROUTE
-    ROUTE -->|USA| VDB_USA
-    ROUTE -->|EU| VDB_EU
-    ROUTE -->|Japan| VDB_JP
-    
-    AGENT1 --> VDB_USA
-    AGENT2 --> GRAPH_USA
-    AGENT3 --> HYBRID
-    AGENT4 -->|Targeted Fixes| DASH
-    
-    VSEARCH --> PPR
-    PPR --> HYBRID
-    HYBRID --> AGENT3
-    AGENT3 --> DASH
-    VIZ --> GRAPH_USA
-    
-    style UI fill:#e1f5ff
-    style AGENT3 fill:#ffe1e1
-    style VDB_USA fill:#fff4e1
-    style GRAPH_USA fill:#e1ffe1
-```
-
-### Compliance Checking Flow
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant Frontend
-    participant API
-    participant VectorDB as ChromaDB (Country-Specific)
-    participant Graph as Knowledge Graph
-    participant Agent as Compliance Agent
-    participant LLM as LavaLabs (Claude)
-    
-    User->>Frontend: Select Region (USA/EU/Japan)
-    User->>Frontend: Upload Protocol PDF
-    Frontend->>API: POST /check-pdf-compliance<br/>{file, country, chunks}
-    
-    Note over API: Split PDF into 12 chunks
-    
-    loop For each chunk
-        Note over API,VectorDB: Step 1: Vector Search
-        API->>VectorDB: Embed chunk + similarity search
-        VectorDB-->>API: Top-10 similar regulations (seeds)
-        
-        Note over API,Graph: Step 2: Graph Propagation
-        API->>Graph: Personalized PageRank(seeds)
-        Graph-->>Graph: Walk RELATED_TO, SIMILAR_TO edges
-        Graph-->>API: Top-10 ranked by relevance
-        
-        Note over API,Agent: Step 3: Multi-Violation Check
-        API->>Agent: Check ALL regulations
-        Agent->>LLM: Analyze each regulation independently
-        LLM-->>Agent: Report ALL violations (0, 1, or many)
-        Agent-->>API: {violations[], score, missing_elements}
-    end
-    
-    API-->>Frontend: Aggregate results<br/>{total_violations, chunks[], score}
-    Frontend-->>User: Visual Dashboard<br/>3D Graph + Violations Panel
-    
-    Note over User,Frontend: User clicks "Amend"
-    
-    Frontend->>API: POST /fix-pdf-violations<br/>{file, violations, country}
-    API->>Agent: Generate fixes for ALL violations
-    Agent->>LLM: Create targeted diffs
-    LLM-->>Agent: Changes per violation
-    Agent-->>API: {changes[], addresses_violation}
-    API-->>Frontend: Proposed amendments
-    Frontend-->>User: Show diffs with apply/reject
+Current Solution: Weeks of manual auditing
+Harmoniq Solution: Answers in <15 seconds
 ```
 
 ---
 
-## 🔬 How It Works
+## Solution Architecture
 
-### 1. **Regulation Ingestion** (One-Time Setup Per Country)
+### Hybrid HippoRAG/GraphRAG Retrieval
 
-```bash
-POST /api/regulations/upload
-{
-  "file": "21-CFR-Part-50.pdf",
-  "country": "USA",
-  "authority": "FDA",
-  "title": "Informed Consent",
-  "version": "2024"
-}
+Harmoniq implements a **hybrid retrieval system** combining:
+
+1. **Vector Search (RAG)**: Semantic similarity via ChromaDB embeddings
+2. **Graph Propagation (GraphRAG)**: Relationship traversal via knowledge graphs
+3. **Diffusion-Based PageRank**: Multi-hop relevance propagation through regulatory dependencies
+
+**Why Hybrid > Traditional RAG:**
+
+| Approach | Finds |
+|----------|-------|
+| **Traditional RAG** | Documents with similar keywords |
+| **GraphRAG** | Connected regulations (single-hop) |
+| **Hybrid HippoRAG** | Similar keywords + multi-hop dependencies + indirect relationships |
+
+**Technical Implementation:**
+
+```python
+# Phase 1: Dense Retrieval (Vector Search)
+query_embedding = embed(protocol_text)
+seed_nodes = chromadb.query(query_embedding, top_k=10)
+
+# Phase 2: Graph Diffusion (Multi-Hop PageRank)
+# Propagate relevance through 3 edge types:
+# - RELATED_TO: LLM-extracted semantic relationships (weight: 1.0)
+# - SIMILAR_TO: Embedding similarity >0.75 (weight: 0.1)
+# - NEARBY: Sequential document structure (weight: 0.3)
+
+ppr_scores = nx.pagerank(
+    graph,
+    personalization={seed: 1/len(seeds) for seed in seed_nodes},
+    alpha=0.85,  # Damping factor for multi-hop propagation
+    max_iter=100
+)
+
+# Phase 3: Fusion & Re-ranking
+ranked_results = sorted(ppr_scores.items(), key=lambda x: x[1], reverse=True)[:10]
 ```
 
-**What happens:**
-1. Extract text from PDF (pypdf)
-2. Chunk into semantic paragraphs (~1500 chars)
-3. Agent extracts **atomic requirements** from messy text
-4. Generate embeddings (sentence-transformers)
-5. Store in **country-specific ChromaDB** instance
-6. Agent extracts **semantic relationships**
-7. Build **country-specific knowledge graph**
-8. Save graph to `data/{country}/graphs/`
+**Diffusion Process:**
+- **Single-hop**: Traditional graph search (immediate neighbors)
+- **Multi-hop**: PageRank diffuses relevance across multiple edges
+- **Damping factor (α=0.85)**: Balances local vs. global graph structure
+- **Personalization vector**: Seeds from vector search guide diffusion
 
-**Result per country:**
-- USA: 179 nodes, 431 edges
-- EU: 250+ nodes, 600+ edges  
-- Japan: 200+ nodes, 500+ edges
+This approach finds:
+- Direct matches (vector similarity)
+- Related requirements (LLM-identified relationships)
+- Dependency chains (multi-hop graph walks)
+- Contextual regulations (nearby in document structure)
 
 ---
 
-### 2. **Multi-Chunk Compliance Check** (Real-Time)
+## System Overview
 
-```bash
-POST /api/regulations/check-pdf-compliance
-{
-  "file": protocol.pdf,
-  "country": "EU",
-  "num_chunks": 12,
-  "top_k": 10
-}
 ```
-
-**What happens:**
-
-#### Phase 1: PDF Processing (~2s)
-1. Extract text from protocol PDF
-2. Split into 12 semantic chunks
-3. Process chunks **concurrently** using asyncio
-
-#### Phase 2: Per-Chunk Analysis (~3-5s per chunk, parallel)
-For each chunk:
-1. **HippoRAG Retrieval** (~400ms)
-   - Embed chunk text
-   - Vector search in country-specific ChromaDB
-   - Personalized PageRank on knowledge graph
-   - Return top-10 regulations
-
-2. **Multi-Violation Detection** (~3s)
-   - Agent checks **ALL regulations independently**
-   - Reports **ALL violations found** (not just first one)
-   - Each chunk can have 0, 1, or **multiple violations**
-   - Filters low-confidence violations (<0.85 threshold)
-
-#### Phase 3: Aggregation (~100ms)
-- Combine results from all chunks
-- Calculate overall compliance score
-- Identify critical violations
-- Generate recommendations
-
-**Response:**
-```json
-{
-  "filename": "protocol.pdf",
-  "total_chunks": 12,
-  "overall_compliance_score": 0.85,
-  "overall_status": "NON_COMPLIANT",
-  "total_violations": 3,
-  "critical_violations": 1,
-  "chunk_results": [
-    {
-      "chunk_index": 0,
-      "chunk_text": "Participants will be informed...",
-      "compliance_score": 0.75,
-      "violations": [
-        {
-          "regulation_id": "EMA-CHUNK40-REQ-001",
-          "severity": "critical",
-          "explanation": "Missing informed consent details",
-          "missing_elements": ["risks", "benefits", "withdrawal rights"]
-        },
-        {
-          "regulation_id": "EMA-CHUNK96-REQ-002",
-          "severity": "high",
-          "explanation": "No IRB approval timeline specified"
-        }
-      ]
-    }
-  ]
-}
+┌─────────────────────────────────────────────────────────────┐
+│                    Frontend (Next.js)                       │
+│  - Document upload                                           │
+│  - 3D knowledge graph visualization (Three.js)              │
+│  - Compliance dashboard                                      │
+│  - Country selection (USA/EU/Japan)                         │
+└────────────────────┬────────────────────────────────────────┘
+                     │ HTTP REST API
+┌────────────────────┴────────────────────────────────────────┐
+│                    Backend (FastAPI)                        │
+│  - Country-specific routing                                 │
+│  - Multi-chunk protocol processing                          │
+│  - Async compliance checking                                │
+└────────────────────┬────────────────────────────────────────┘
+                     │
+        ┌────────────┴────────────┐
+        │                         │
+┌───────▼────────┐      ┌────────▼─────────┐
+│  Agent Layer   │      │  Storage Layer   │
+│                │      │  (Per Country)   │
+│  - Parser      │      │                  │
+│  - Relationship│◄─────┤  - ChromaDB      │
+│  - Compliance  │      │  - NetworkX      │
+│  - Fix Gen     │      │    Graphs        │
+└───────┬────────┘      └──────────────────┘
+        │
+        │ LavaLabs API
+        ▼
+┌────────────────┐
+│ Claude 3.5     │
+│ Sonnet         │
+└────────────────┘
 ```
 
 ---
 
-### 3. **Automated Violation Fixing**
+## Key Features
 
-```bash
-POST /api/regulations/fix-pdf-violations
-{
-  "file": protocol.pdf,
-  "compliance_results": {...},
-  "country": "EU"
-}
+### 1. Multi-Jurisdictional Support
+
+Independent regulatory knowledge bases:
+- **USA**: FDA regulations (179 nodes, 431 edges)
+- **EU**: EMA regulations (250+ nodes, 600+ edges)
+- **Japan**: PMDA regulations (200+ nodes, 500+ edges)
+
+Each jurisdiction has:
+- Dedicated ChromaDB vector database
+- Separate knowledge graph
+- Country-specific compliance rules
+
+### 2. Multi-Violation Detection
+
+**Important**: Each protocol chunk can violate multiple regulations simultaneously.
+
+- Agent checks ALL regulations independently (no early stopping)
+- Reports comprehensive violation list per chunk
+- Filters low-confidence violations (<0.85 probability threshold)
+- Weighted compliance scoring by severity
+
+### 3. Automated Fix Generation
+
+For each violation, generates:
+- 1-2 targeted diffs (replace/add/delete)
+- Labeled with corresponding violation
+- Prioritized by severity (critical first)
+- Minimal changes to achieve compliance
+
+### 4. Knowledge Graph Construction
+
+**3 Edge Types:**
+
+| Edge Type | Source | Weight | Purpose |
+|-----------|--------|--------|---------|
+| RELATED_TO | LLM extraction | 1.0 | Semantic relationships |
+| SIMILAR_TO | Cosine similarity >0.75 | 0.1 | Embedding proximity |
+| NEARBY | Document structure | 0.3 | Sequential context |
+
+Graph built via:
+1. LLM extracts atomic requirements from PDFs
+2. LLM identifies semantic relationships (RELATED_TO edges)
+3. Compute embedding similarity matrix (SIMILAR_TO edges)
+4. Add sequential links for document structure (NEARBY edges)
+
+---
+
+## Compliance Checking Flow
+
 ```
-
-**What happens:**
-1. For each chunk with violations
-2. Agent generates **targeted diffs**:
-   - 1-2 changes per violation
-   - Each change labeled with which violation it addresses
-   - Addresses **all violations** in the chunk
-3. Returns proposed amendments
-
-**Response:**
-```json
-{
-  "changes": [
-    {
-      "type": "replace",
-      "original": "Participants will be informed about the study",
-      "replacement": "Participants will receive written informed consent including study purpose, risks, benefits, and withdrawal rights",
-      "reason": "VIOLATION 1: Missing §50.25 required elements",
-      "addresses_violation": 1
-    },
-    {
-      "type": "add",
-      "after": "IRB review will be conducted",
-      "content": " within 30 days prior to study initiation",
-      "reason": "VIOLATION 2: Missing timeline per EMA guidelines",
-      "addresses_violation": 2
-    }
-  ],
-  "total_changes": 2
-}
+User uploads protocol PDF + selects country (EU)
+↓
+1. Split PDF into 12 semantic chunks (~2-3 pages each)
+↓
+2. For each chunk (parallel processing):
+   a) Embed chunk text → 384-dim vector
+   b) Vector search in EU ChromaDB → top-10 seeds
+   c) Personalized PageRank on EU graph → diffusion across edges
+   d) LLM analyzes ALL retrieved regulations
+   e) Report ALL violations found (0, 1, or multiple)
+↓
+3. Aggregate results:
+   - Total violations across all chunks
+   - Overall compliance score (severity-weighted)
+   - Critical violations list
+↓
+4. Optional: Generate targeted fixes for all violations
+↓
+Result: Comprehensive compliance report in ~12-15 seconds
 ```
 
 ---
 
-## 🧠 Key Technologies
+## Technical Stack
 
 | Component | Technology | Purpose |
 |-----------|-----------|---------|
-| **Frontend** | Next.js 15 + TypeScript | Modern React with App Router |
-| **3D Visualization** | Three.js + react-force-graph-3d | Interactive knowledge graph |
-| **Backend API** | FastAPI + Uvicorn | RESTful endpoints, async processing |
-| **Vector Database** | ChromaDB (per country) | Embedding storage + similarity search |
-| **Knowledge Graph** | NetworkX (persistent) | Regulation relationships + PageRank |
-| **Embeddings** | sentence-transformers | Semantic text representation |
-| **LLM Agent** | LavaLabs (Anthropic Claude 3.5 Sonnet) | Semantic extraction + compliance analysis |
-| **PDF Parsing** | PyMuPDF | Protocol text extraction |
-| **Deployment** | Docker + Docker Compose | Containerized production deployment |
+| Frontend | Next.js 15, TypeScript | Modern React application |
+| 3D Viz | Three.js, react-force-graph-3d | Interactive graph exploration |
+| Backend API | FastAPI, Uvicorn | Async REST endpoints |
+| Vector DB | ChromaDB (per country) | Embedding storage + similarity search |
+| Knowledge Graph | NetworkX | Graph operations + PageRank |
+| Embeddings | sentence-transformers (all-MiniLM-L6-v2) | Local semantic encoding |
+| LLM | LavaLabs (Claude 3.5 Sonnet) | Requirement extraction + compliance analysis |
+| PDF Parsing | PyMuPDF | Text extraction |
+| Deployment | Docker + Docker Compose | Containerized production |
 
 ---
 
-## 📊 Performance
+## Performance Metrics
 
-**Current System (3 Jurisdictions):**
-- **USA**: 179 requirements, 431 edges
-- **EU**: 250+ requirements, 600+ edges
-- **Japan**: 200+ requirements, 500+ edges
-- **~12 seconds** end-to-end full PDF compliance check
-  - 2s: PDF extraction + chunking
-  - 3-5s per chunk (parallel): HippoRAG + compliance analysis
-  - 100ms: Aggregation
-- **Handles multiple violations per chunk**
-- **Concurrent processing** for speed
-
-**Scalability:**
-- Graph algorithms: O(n log n) for PageRank
-- Vector search: O(1) with approximate nearest neighbors
-- Can handle thousands of regulations per jurisdiction
-- Persistent storage (no re-ingestion needed)
-- Independent country instances for isolation
+| Metric | Value |
+|--------|-------|
+| Total Regulations | 600+ (across 3 jurisdictions) |
+| Total Graph Edges | 1500+ |
+| Full PDF Compliance Check | 12-15 seconds (12 chunks, parallel) |
+| Single Chunk Analysis | 3-5 seconds |
+| HippoRAG Retrieval | <500ms |
+| Vector Search | ~100ms |
+| PageRank Computation | ~200ms |
+| Handles Messy PDFs | Yes (no manual cleanup needed) |
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
-### Prerequisites
-```bash
-# Backend
-python 3.11+
-poetry (or pip)
-
-# Frontend
-node 18+
-npm or yarn
-
-# Optional
-Docker + Docker Compose
-```
-
-### Quick Start with Docker (Recommended)
+### Docker (Recommended)
 
 ```bash
 # Clone repository
 git clone https://github.com/yourusername/harmoniq.git
-cd harmoniq
 
 # Backend
-cd backend-fastapi
+cd harmoniq/backend-fastapi
 cp .env.example .env
-# Add your LAVA_API_KEY
+# Add LAVA_API_KEY to .env
 docker-compose up -d
 
 # Frontend
@@ -411,27 +248,21 @@ npm start
 ```
 
 Access:
-- Frontend: `http://localhost:3000`
-- Backend API: `http://localhost:8000`
-- API Docs: `http://localhost:8000/docs`
+- Frontend: http://localhost:3000
+- Backend API: http://localhost:8000
+- API Docs: http://localhost:8000/docs
 
 ### Manual Installation
 
-#### Backend
+**Backend:**
 ```bash
 cd backend-fastapi
 poetry install
 poetry shell
-
-# Configure
-cp .env.example .env
-# Add LAVA_API_KEY
-
-# Run
 uvicorn app.main:app --reload
 ```
 
-#### Frontend
+**Frontend:**
 ```bash
 cd harmoniq-frontend
 npm install
@@ -440,9 +271,10 @@ npm run dev
 
 ---
 
-## 📖 Usage Examples
+## API Usage Examples
 
-### 1. Upload Regulation (with Country Routing)
+### 1. Upload Regulation (Country-Specific)
+
 ```bash
 curl -X POST http://localhost:8000/api/regulations/upload \
   -F "file=@regulation.pdf" \
@@ -452,7 +284,8 @@ curl -X POST http://localhost:8000/api/regulations/upload \
   -F "version=2024"
 ```
 
-### 2. Check Full Protocol Compliance
+### 2. Check Protocol Compliance
+
 ```bash
 curl -X POST http://localhost:8000/api/regulations/check-pdf-compliance \
   -F "file=@protocol.pdf" \
@@ -461,7 +294,15 @@ curl -X POST http://localhost:8000/api/regulations/check-pdf-compliance \
   -F "top_k=10"
 ```
 
-### 3. Get Violation Fixes
+Response includes:
+- Overall compliance score
+- Violations per chunk (0 to many)
+- Critical violations list
+- Missing regulatory elements
+- Processing time
+
+### 3. Generate Violation Fixes
+
 ```bash
 curl -X POST http://localhost:8000/api/regulations/fix-pdf-violations \
   -F "file=@protocol.pdf" \
@@ -469,145 +310,125 @@ curl -X POST http://localhost:8000/api/regulations/fix-pdf-violations \
   -F "compliance_results=@results.json"
 ```
 
-### 4. Query Knowledge Graph
-```bash
-curl -X GET "http://localhost:8000/api/regulations/graph/data?country=USA"
+Returns targeted diffs for all violations.
+
+---
+
+## HippoRAG Technical Details
+
+### Algorithm Overview
+
+**Traditional RAG Limitation:**
+```
+Query: "informed consent requirements"
+→ Vector search finds: "consent must be obtained"
+✗ Misses: "IRB approval required" (different keywords, but related)
+✗ Misses: "participant withdrawal rights" (dependency chain)
+```
+
+**HippoRAG Solution:**
+```
+Query: "informed consent requirements"
+→ Vector search seeds: ["consent", "informed consent form", ...]
+→ PageRank diffusion propagates relevance:
+   - RELATED_TO edges → finds "IRB approval" (LLM-identified relationship)
+   - SIMILAR_TO edges → finds "participant rights" (semantic similarity)
+   - NEARBY edges → finds "consent timeline" (sequential context)
+✓ Comprehensive retrieval across semantic, structural, and dependency dimensions
+```
+
+### Personalized PageRank Formula
+
+```
+PR(v) = (1 - α) · p(v) + α · Σ(PR(u) / deg(u)) for all u → v
+
+Where:
+- α = 0.85 (damping factor, enables multi-hop)
+- p(v) = personalization vector (1/k for seed nodes, 0 otherwise)
+- deg(u) = out-degree of node u
+- Edge weights modulate propagation strength
+```
+
+**Multi-Hop Example:**
+```
+Seed: REQ-001 (informed consent)
+Hop 1: REQ-005 (IRB approval) via RELATED_TO
+Hop 2: REQ-012 (adverse event reporting) via RELATED_TO from REQ-005
+Hop 3: REQ-018 (data retention) via SIMILAR_TO from REQ-012
+
+Result: 4-node retrieval chain spanning consent → IRB → safety → data
+Traditional vector search: only REQ-001
 ```
 
 ---
 
-## 🎯 Use Cases
+## Use Cases
 
-### 1. **Multi-Jurisdictional Compliance**
-**Scenario:** Same trial in USA + EU + Japan  
-**Solution:** Run 3 parallel compliance checks → identify country-specific gaps
+**1. Multi-Jurisdictional Compliance**
+- Same trial in USA + EU + Japan
+- Run 3 parallel compliance checks
+- Identify country-specific gaps
 
-### 2. **Regulatory Change Impact Analysis**
-**Scenario:** FDA updates informed consent requirements  
-**Solution:** Query all USA protocols → find impacted clauses → generate revision list
+**2. Regulatory Change Impact Analysis**
+- FDA updates informed consent requirements
+- Query all USA protocols
+- Generate revision list
 
-### 3. **Protocol Compliance Audit**
-**Scenario:** Before trial submission, check if protocol meets all requirements  
-**Solution:** Upload protocol → run compliance check → get violation report with fixes
+**3. Protocol Drafting Assistant**
+- Writing new protocol section
+- Query relevant regulations
+- Get checklist of required elements
 
-### 4. **Automated Amendment Generation**
-**Scenario:** Protocol has 5 violations across 3 chunks  
-**Solution:** System generates 5-10 targeted fixes → review + apply → compliant protocol
-
----
-
-## 🐳 Docker Deployment
-
-### Development
-```bash
-docker-compose up -d
-docker-compose logs -f backend
-```
-
-### Production
-```bash
-docker build -t harmoniq-backend .
-docker run -d \
-  --name harmoniq-backend \
-  --restart unless-stopped \
-  -p 8000:8000 \
-  -e LAVA_API_KEY=$LAVA_API_KEY \
-  -v $(pwd)/data:/app/data \
-  harmoniq-backend
-```
-
-See `backend-fastapi/README.Docker.md` for complete Docker guide.
+**4. Automated Amendment Generation**
+- Protocol has 5 violations across 3 chunks
+- System generates 5-10 targeted fixes
+- Review + apply → compliant protocol
 
 ---
 
-## 📈 Roadmap
+## Roadmap
 
+**Current (v1.0):**
 - [x] Multi-jurisdiction support (USA, EU, Japan)
-- [x] Full protocol document parsing
-- [x] Multi-violation per chunk detection
+- [x] Hybrid HippoRAG/GraphRAG retrieval
+- [x] Multi-violation detection
 - [x] Automated fix generation
-- [x] 3D knowledge graph visualization
+- [x] 3D graph visualization
 - [x] Docker deployment
-- [ ] Change detection (diff between regulation versions)
-- [ ] Impact propagation (regulation → protocols → studies → sites)
-- [ ] Real-time monitoring of regulatory updates
-- [ ] Integration with clinical trial management systems
-- [ ] OCR support for scanned PDFs
+
+**Future (v2.0):**
+- [ ] Additional jurisdictions (Health Canada, Australia TGA)
+- [ ] Regulation version tracking and change detection
+- [ ] Impact propagation (regulation → protocols → studies)
+- [ ] Real-time regulatory monitoring
+- [ ] Advanced graph analytics (community detection, centrality measures)
+- [ ] GraphQL API option
 
 ---
 
-## 🛠️ Technical Details
+## Contributing
 
-### Knowledge Graph Structure
-
-**Nodes:**
-- Atomic regulatory requirements
-- Metadata: country, severity, section, text, authority
-
-**Edges (3 Types):**
-- `RELATED_TO`: LLM-extracted semantic relationships (confidence weighted)
-- `SIMILAR_TO`: Embedding cosine similarity > 0.75
-- `NEARBY`: Sequential document structure (±1 neighbor)
-
-### Agent System
-
-**1. Semantic Parser Agent**
-- Extracts 10-20 atomic requirements per chunk
-- Identifies topic, severity, requirement type
-- Handles messy/unstructured text
-
-**2. Relationship Extraction Agent**
-- Processes requirements in batches of 30
-- Finds semantic relationships (not just keyword matching)
-- Generates confidence scores
-
-**3. Compliance Analysis Agent**
-- **NEW**: Checks ALL regulations independently
-- **NEW**: Reports ALL violations per chunk (not just first)
-- Determines if regulations are actually related
-- Provides actionable remediation steps
-
-**4. Violation Fix Agent**
-- **NEW**: Generates fixes for ALL violations in a chunk
-- Creates targeted diffs (1-2 per violation)
-- Labels each fix with which violation it addresses
-- Prioritizes critical violations first
-
-### Multi-Violation Support
-
-Each protocol chunk is now checked against ALL regulations:
-- ✅ One chunk can have 0, 1, or multiple violations
-- ✅ Agent doesn't stop after finding first violation
-- ✅ Fix agent addresses all violations simultaneously
-- ✅ Each fix is labeled with its corresponding violation
+Contributions welcome. Focus areas:
+- Additional jurisdiction support
+- Performance optimizations
+- Enhanced agent prompts
+- Alternative embedding models
+- Graph visualization improvements
 
 ---
 
-## 📄 License
+## License
 
 MIT License - See LICENSE file for details
 
 ---
 
-## 🤝 Contributing
+## Contact
 
-Contributions welcome! This project aims to make clinical trial compliance faster and more accurate.
-
-**Areas of interest:**
-- Additional regulation parsers (Health Canada, Australia TGA)
-- Enhanced graph visualization tools
-- Performance optimization for large document sets
-- Integration with pharma document management systems
-- Advanced violation pattern detection
+For questions or collaboration:
+- Email: vardhan@harmoniq.ai
+- Project: Intelligent Clinical Trial Compliance Platform
 
 ---
 
-## 📧 Contact
-
-For questions or collaboration opportunities:
-- **Email:** vardhan@harmoniq.ai
-- **Project:** Intelligent Clinical Trial Compliance Platform
-
----
-
-**Built with ❤️ for clinical research teams fighting to bring life-saving drugs to market faster.**
+**Built for clinical research teams fighting to bring life-saving drugs to market faster.**
