@@ -256,8 +256,30 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Profile - always show */}
-      <div className="fixed top-6 right-6 z-50">
+      {/* Top Right Navigation - always show */}
+      <div className="fixed top-6 right-6 z-50 flex items-center gap-3">
+        {/* Usage Button */}
+        <button
+          onClick={() => router.push("/usage")}
+          className="group hover:blue-glow flex cursor-pointer items-center gap-2 rounded-xl border border-blue-500/20 bg-[#0a0f1e]/90 px-4 py-2 backdrop-blur-xl transition-all duration-300 hover:border-blue-500/40"
+        >
+          <svg
+            className="h-4 w-4 text-blue-400"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+            />
+          </svg>
+          <span className="text-sm font-medium text-white">Usage</span>
+        </button>
+
+        {/* Profile */}
         <div className="h-10 w-10 overflow-hidden rounded-full border border-blue-500/15 bg-[#0a0f1e] transition-all duration-300 hover:border-blue-500/40 hover:bg-blue-600/10">
           <div className="flex h-full w-full items-center justify-center text-sm font-bold text-blue-400">
             JP
