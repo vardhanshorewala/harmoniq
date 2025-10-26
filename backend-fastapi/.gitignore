@@ -30,8 +30,15 @@ ENV/
 .env
 .env.local
 
-# ChromaDB data
+# ChromaDB data and graphs
 data/
+
+# Test scripts
+test_*.py
+reextract_relationships.py
+
+# Regulation documents
+docs/
 
 # IDE
 .vscode/

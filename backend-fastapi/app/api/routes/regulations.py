@@ -52,6 +52,27 @@ class RetrievalResponse(BaseModel):
     num_results: int
 
 
+class ComplianceCheckRequest(BaseModel):
+    """Request for compliance checking"""
+    protocol_paragraph: str
+    country: str = "USA"
+    top_k: int = 10
+
+
+class ComplianceCheckResponse(BaseModel):
+    """Response for compliance checking"""
+    protocol_text: str
+    total_regulations_checked: int
+    related_regulations: int
+    compliant_count: int
+    non_compliant_count: int
+    overall_compliance_score: float
+    status: str
+    detailed_results: List[dict]
+    critical_violations: List[dict]
+    recommendations: List[List[str]]
+
+
 @router.post("/upload", response_model=RegulationUploadResponse)
 async def upload_regulation(
     file: UploadFile = File(...),
@@ -149,6 +170,54 @@ async def get_graph_stats():
     """Get current knowledge graph statistics"""
     service = get_regulation_service()
     return service.graph_builder.get_stats()
+
+
+@router.post("/check-compliance", response_model=ComplianceCheckResponse)
+async def check_protocol_compliance(request: ComplianceCheckRequest):
+    """
+    Check if a protocol paragraph complies with regulations
+    
+    This endpoint:
+    1. Uses HippoRAG to find top-K relevant regulations for the paragraph
+    2. Sends paragraph + regulations to compliance agent (LLM)
+    3. Agent analyzes each regulation for:
+       - Relevance to the paragraph
+       - Compliance status
+       - Non-compliance probability
+       - Missing elements
+    
+    Args:
+        request: Compliance check request with protocol text and parameters
+        
+    Returns:
+        Detailed compliance analysis with violations and recommendations
+        
+    Example:
+        ```
+        POST /api/regulations/check-compliance
+        {
+          "protocol_paragraph": "Participants will be informed about the study...",
+          "country": "USA",
+          "top_k": 10
+        }
+        ```
+    """
+    service = get_regulation_service()
+    
+    try:
+        result = await service.check_protocol_compliance(
+            protocol_paragraph=request.protocol_paragraph,
+            country=request.country,
+            top_k=request.top_k
+        )
+        
+        if "error" in result:
+            raise HTTPException(status_code=400, detail=result["error"])
+        
+        return ComplianceCheckResponse(**result)
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Compliance check failed: {str(e)}")
 
 
 @router.get("/test")

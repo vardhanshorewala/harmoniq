@@ -9,6 +9,7 @@ from pypdf import PdfReader
 from sentence_transformers import SentenceTransformer
 
 from app.agents import OpenRouterAgent
+from app.agents.compliance_agent import ComplianceAgent
 from app.chroma import get_chroma_client
 from app.graph.graph_builder import RegulationGraphBuilder
 from app.models.regulation import (
@@ -24,6 +25,7 @@ class RegulationService:
     def __init__(self):
         """Initialize regulation service"""
         self.agent = OpenRouterAgent()
+        self.compliance_agent = ComplianceAgent()
         self.chroma_client = get_chroma_client()
         self.graph_builder = RegulationGraphBuilder()
         
@@ -57,21 +59,43 @@ class RegulationService:
         return text
     
     def _chunk_text(self, text: str, chunk_size: int) -> List[str]:
-        """Split text into chunks at paragraph boundaries"""
-        paragraphs = text.split('\n\n')
+        """
+        Split text into chunks - force split if no natural breaks
+        """
+        # Try paragraph breaks first
+        paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
+        
+        # If only 1-2 paragraphs, try single newlines
+        if len(paragraphs) <= 2:
+            paragraphs = [p.strip() for p in text.split('\n') if p.strip()]
+        
+        # If still minimal splits, try sentences
+        if len(paragraphs) <= 5:
+            import re
+            paragraphs = [s.strip() for s in re.split(r'[.!?]\s+', text) if s.strip()]
+        
         chunks = []
         current_chunk = ""
         
         for para in paragraphs:
-            if len(current_chunk) + len(para) < chunk_size:
-                current_chunk += para + "\n\n"
+            if len(current_chunk) + len(para) + 2 < chunk_size:
+                current_chunk += para + " "
             else:
-                if current_chunk:
-                    chunks.append(current_chunk)
-                current_chunk = para + "\n\n"
+                if current_chunk.strip():
+                    chunks.append(current_chunk.strip())
+                current_chunk = para + " "
         
-        if current_chunk:
-            chunks.append(current_chunk)
+        if current_chunk.strip():
+            chunks.append(current_chunk.strip())
+        
+        # Force split if still too few chunks
+        if len(chunks) < 10 and len(text) > chunk_size * 10:
+            print(f"  Warning: Only {len(chunks)} natural chunks found, forcing split...")
+            chunks = []
+            for i in range(0, len(text), chunk_size):
+                chunk = text[i:i + chunk_size].strip()
+                if chunk:
+                    chunks.append(chunk)
         
         return chunks
     
@@ -91,44 +115,46 @@ class RegulationService:
         - Mixed requirements in paragraphs
         - OCR errors or poor quality
         
-        Your task: Extract individual REQUIREMENTS (not sections).
-        Each requirement is something a company must/should do to comply.
+        Your task: Extract ATOMIC REQUIREMENTS (one specific action per requirement).
+        Each requirement must be SHORT (1 sentence, under 150 characters if possible).
         
         Text:
         {text}
         
         For each requirement found:
         - Give it a unique ID (REQ-001, REQ-002, etc.)
-        - Extract the full requirement text (1-3 sentences)
+        - Extract ONE SPECIFIC requirement in 1 SHORT sentence
         - Classify if mandatory ("must"/"shall") or recommended ("should"/"may")
         - Rate severity: critical/high/medium/low
         - Identify the TOPIC (e.g., "data validation", "user authentication", "audit trails")
         
-        IMPORTANT: 
-        - Extract semantic requirements, not structural sections
-        - One requirement = one specific thing to comply with
-        - Requirements can come from anywhere in the text
+        CRITICAL RULES: 
+        - ONE requirement = ONE specific action or rule
+        - BREAK DOWN complex paragraphs into multiple atomic requirements
+        - PREFER short, focused requirements (1 sentence each)
+        - If a sentence contains "and" or multiple clauses, split them
+        - Extract EVERY distinct requirement, no matter how small
         
         Return as JSON array:
         [
           {{
             "id": "REQ-001",
-            "text": "Systems must be validated to ensure accuracy and reliability",
-            "topic": "validation",
+            "text": "Sponsors must obtain FDA approval before starting trials",
+            "topic": "approval process",
             "requirement_type": "mandatory",
             "severity": "critical"
           }},
           {{
             "id": "REQ-002",
-            "text": "Organizations should implement access controls to limit system access",
-            "topic": "access control",
-            "requirement_type": "recommended",
-            "severity": "high"
+            "text": "Informed consent forms must be signed by participants",
+            "topic": "informed consent",
+            "requirement_type": "mandatory",
+            "severity": "critical"
           }},
           ...
         ]
         
-        Extract 10-20 requirements. Be thorough.
+        Extract 3-8 atomic requirements from this small text chunk. Be thorough.
         """
         
         try:
@@ -182,15 +208,17 @@ class RegulationService:
             List of RegulationClause objects
         """
         # Chunk text if too long (API limits)
-        max_chunk_size = 8000
+        max_chunk_size = 1500  # Very small chunks (2-3 sentences) for atomic extraction
         if len(text) > max_chunk_size:
             # Process in chunks and combine
             chunks = self._chunk_text(text, max_chunk_size)
             all_clauses = []
-            for i, chunk in enumerate(chunks[:3]):  # Limit to 3 chunks for demo
-                print(f"  Processing chunk {i+1}/{min(3, len(chunks))}...")
+            print(f"  Total chunks to process: {len(chunks)}")
+            for i, chunk in enumerate(chunks):  # Process ALL chunks
+                print(f"  Processing chunk {i+1}/{len(chunks)}...")
                 chunk_clauses = await self._parse_chunk(chunk, country, authority, i)
                 all_clauses.extend(chunk_clauses)
+                print(f"    → Extracted {len(chunk_clauses)} requirements from chunk {i+1}")
             return all_clauses
         else:
             return await self._parse_chunk(text, country, authority, 0)
@@ -209,74 +237,85 @@ class RegulationService:
         Returns:
             List of RegulationTriplet objects
         """
-        # Create summary of all clauses
-        clauses_summary = "\n".join([
-            f"{clause.id} [{clause.section}]: {clause.text[:80]}..."
-            for clause in clauses[:25]  # Limit for token constraints
-        ])
+        # Create summary of all clauses (process in batches if too many)
+        batch_size = 30
+        all_triplets = []
         
-        prompt = f"""
-        Analyze these regulatory requirements and find which ones are RELATED to each other.
-        
-        These are extracted from MESSY, UNSTRUCTURED text.
-        Find relationships based on MEANING - which requirements:
-        - Cover similar topics
-        - Work together for compliance
-        - Depend on each other
-        - Implement related concepts
-        
-        Requirements:
-        {clauses_summary}
-        
-        Return as JSON array (find at least 10-15 relationships):
-        [
-          {{
-            "subject": "FDA-CHUNK0-REQ-001",
-            "predicate": "RELATED_TO",
-            "object": "FDA-CHUNK0-REQ-005",
-            "confidence": 0.85,
-            "reason": "both about system validation and quality control"
-          }},
-          {{
-            "subject": "FDA-CHUNK0-REQ-003",
-            "predicate": "RELATED_TO",
-            "object": "FDA-CHUNK0-REQ-007",
-            "confidence": 0.78,
-            "reason": "both address data integrity and record keeping"
-          }},
-          ...
-        ]
-        
-        Focus on MEANINGFUL relationships. Higher confidence for stronger relationships.
-        """
-        
-        try:
-            response = await self.agent.call(prompt, temperature=0.3)
-            response_text = self.agent.get_text_response(response)
+        for batch_start in range(0, len(clauses), batch_size):
+            batch_end = min(batch_start + batch_size, len(clauses))
+            batch_clauses = clauses[batch_start:batch_end]
             
-            # Extract JSON
-            json_match = re.search(r'\[.*\]', response_text, re.DOTALL)
-            if json_match:
-                triplets_data = json.loads(json_match.group())
-            else:
-                triplets_data = json.loads(response_text)
+            clauses_summary = "\n".join([
+                f"{clause.id} [{clause.section}]: {clause.text[:80]}..."
+                for clause in batch_clauses
+            ])
             
-            # Convert to RegulationTriplet objects
-            triplets = []
-            for triplet_data in triplets_data:
-                triplet = RegulationTriplet(
-                    subject=triplet_data['subject'],
-                    predicate=triplet_data['predicate'],
-                    object=triplet_data['object'],
-                    confidence=triplet_data.get('confidence', 0.8),
-                )
-                triplets.append(triplet)
+            if batch_start > 0:
+                print(f"  Analyzing relationships for clauses {batch_start+1}-{batch_end}...")
             
-            return triplets
+            # ✅ Prompt is now INSIDE the loop
+            prompt = f"""
+            Analyze these regulatory requirements and find which ones are RELATED to each other.
+            
+            These are extracted from MESSY, UNSTRUCTURED text.
+            Find relationships based on MEANING - which requirements:
+            - Cover similar topics
+            - Work together for compliance
+            - Depend on each other
+            - Implement related concepts
+            
+            Requirements:
+            {clauses_summary}
+            
+            Return as JSON array (find at least 8-12 relationships):
+            [
+              {{
+                "subject": "FDA-CHUNK0-REQ-001",
+                "predicate": "RELATED_TO",
+                "object": "FDA-CHUNK0-REQ-005",
+                "confidence": 0.85,
+                "reason": "both about system validation and quality control"
+              }},
+              {{
+                "subject": "FDA-CHUNK0-REQ-003",
+                "predicate": "RELATED_TO",
+                "object": "FDA-CHUNK0-REQ-007",
+                "confidence": 0.78,
+                "reason": "both address data integrity and record keeping"
+              }},
+              ...
+            ]
+            
+            Focus on MEANINGFUL relationships. Higher confidence for stronger relationships.
+            """
+            
+            try:
+                # ✅ Agent called for EACH batch
+                response = await self.agent.call(prompt, temperature=0.3)
+                response_text = self.agent.get_text_response(response)
+                
+                # Extract JSON
+                json_match = re.search(r'\[.*\]', response_text, re.DOTALL)
+                if json_match:
+                    triplets_data = json.loads(json_match.group())
+                else:
+                    triplets_data = json.loads(response_text)
+                
+                # Convert to RegulationTriplet objects
+                for triplet_data in triplets_data:
+                    triplet = RegulationTriplet(
+                        subject=triplet_data['subject'],
+                        predicate=triplet_data['predicate'],
+                        object=triplet_data['object'],
+                        confidence=triplet_data.get('confidence', 0.8),
+                    )
+                    all_triplets.append(triplet)
+            
+            except Exception as e:
+                print(f"  Warning: Error extracting triplets for batch {batch_start}-{batch_end}: {e}")
+                continue
         
-        except Exception as e:
-            print(f"Error extracting triplets: {e}")
-            return []
+        return all_triplets
     
     def embed_clauses(self, clauses: List[RegulationClause]) -> List[RegulationClause]:
         """
@@ -493,3 +532,47 @@ class RegulationService:
                 })
         
         return results
+    
+    async def check_protocol_compliance(
+        self,
+        protocol_paragraph: str,
+        country: str,
+        top_k: int = 10
+    ) -> Dict:
+        """
+        Check if a protocol paragraph complies with regulations
+        
+        Workflow:
+        1. Use HippoRAG to find top-K relevant regulations
+        2. Send paragraph + regulations to compliance agent
+        3. Agent determines compliance and provides detailed analysis
+        
+        Args:
+            protocol_paragraph: Text from protocol to check
+            country: Country to check against (e.g., "USA")
+            top_k: Number of regulations to check against (default: 10)
+            
+        Returns:
+            Compliance analysis with detailed results
+        """
+        # Step 1: Find relevant regulations using HippoRAG
+        relevant_regs = self.retrieve_with_hipporag(
+            query_text=protocol_paragraph,
+            country=country,
+            top_k=top_k
+        )
+        
+        if not relevant_regs:
+            return {
+                "error": "No relevant regulations found",
+                "status": "ERROR",
+                "protocol_text": protocol_paragraph
+            }
+        
+        # Step 2: Check compliance with agent
+        compliance_result = await self.compliance_agent.check_compliance(
+            protocol_paragraph=protocol_paragraph,
+            relevant_regulations=relevant_regs
+        )
+        
+        return compliance_result
