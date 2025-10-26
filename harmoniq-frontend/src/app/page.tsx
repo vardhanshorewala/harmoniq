@@ -147,14 +147,14 @@ export default function HomePage() {
       {!isExpanded && (
         <div className="animate-in fade-in slide-in-from-bottom-4 absolute inset-x-0 top-[30%] text-center duration-700">
           <h1 className="mb-6 text-6xl font-bold text-white">
-            Welcome back, John!
+            Hello, Johnson!
           </h1>
           <p className="mb-2 text-xl text-gray-300">
-            Regulatory Intelligence Agent
+            I'm here to help you fast track compliance.
           </p>
-          <p className="mb-8 text-base text-gray-500">
-            Compare regulatory excerpts against clinical documents
-          </p>
+          {/* <p className="mb-8 text-base text-gray-500">
+            Let's compare regulatory excerpts against clinical documents.
+          </p> */}
         </div>
       )}
 

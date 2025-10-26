@@ -319,43 +319,95 @@ export default function DashboardPage() {
   useEffect(() => {
     if (graphRef.current && graphData.nodes.length > 0) {
       // Configure 3D forces with closer nodes
-      graphRef.current.d3Force("charge", d3.forceManyBody().strength(-1200));
+      graphRef.current.d3Force("charge", d3.forceManyBody().strength(-300)); // Reduced repulsion
       graphRef.current.d3Force(
         "link",
-        d3.forceLink().distance(150).strength(0.15),
+        d3.forceLink().distance(60).strength(0.4), // Shorter links, stronger pull
       );
 
-      // Remove center force to allow true 3D distribution
-      graphRef.current.d3Force("center", null);
-      graphRef.current.d3Force("collision", d3.forceCollide().radius(80));
+      // Add center force to keep graph centered
+      graphRef.current.d3Force("center", d3.forceCenter(0, 0, 0).strength(0.1));
+      graphRef.current.d3Force("collision", d3.forceCollide().radius(35)); // Smaller collision
 
-      // Distribute nodes in 3D space with good z-spread
+      // Load node positions from session storage or generate new ones
+      const storageKey = "harmoniq-graph-positions";
+      const cameraKey = "harmoniq-camera-position";
+      let savedPositions: any = null;
+
+      try {
+        const saved = sessionStorage.getItem(storageKey);
+        if (saved) {
+          savedPositions = JSON.parse(saved);
+        }
+      } catch (error) {
+        console.log("Could not load saved positions:", error);
+      }
+
+      // CLEAR old camera position to apply new settings
+      // Remove this line after testing to keep camera position
+      sessionStorage.removeItem(cameraKey);
+
+      // Distribute nodes in 3D space - CLOSER TOGETHER and CENTERED
+      const newPositions: any = {};
       graphData.nodes.forEach((node: any) => {
-        if (!node.z || node.z === 0) {
-          // Give each node a significant z-position for true 3D effect
-          node.z = (Math.random() - 0.5) * 400;
+        // Try to load saved position
+        if (savedPositions && savedPositions[node.id]) {
+          node.x = savedPositions[node.id].x;
+          node.y = savedPositions[node.id].y;
+          node.z = savedPositions[node.id].z;
+        } else {
+          // Generate new positions - SMALLER SPREAD, CENTERED AT ORIGIN
+          if (!node.z || node.z === 0) {
+            node.z = (Math.random() - 0.5) * 120; // Even smaller spread
+          }
+          if (!node.y) {
+            node.y = (Math.random() - 0.5) * 120; // Even smaller spread
+          }
+          if (!node.x) {
+            node.x = (Math.random() - 0.5) * 120; // Even smaller spread
+          }
         }
-        if (!node.y) {
-          node.y = (Math.random() - 0.5) * 350;
-        }
-        if (!node.x) {
-          node.x = (Math.random() - 0.5) * 350;
-        }
+
+        // Save position for next time
+        newPositions[node.id] = { x: node.x, y: node.y, z: node.z };
       });
 
-      // Find the central node (req-1: Study Purpose)
-      const centralNode = graphData.nodes.find((n: any) => n.id === "req-1");
-
-      if (centralNode) {
-        // Zoom out to show all nodes initially
-        setTimeout(() => {
-          graphRef.current.cameraPosition(
-            { x: 0, y: 0, z: 600 },
-            { x: 0, y: 0, z: 0 },
-            1000,
-          );
-        }, 100);
+      // Save positions to session storage
+      try {
+        sessionStorage.setItem(storageKey, JSON.stringify(newPositions));
+      } catch (error) {
+        console.log("Could not save positions:", error);
       }
+
+      // Center the entire graph and restore camera position if saved
+      setTimeout(() => {
+        if (graphRef.current) {
+          // Just use zoomToFit to show all nodes properly
+          graphRef.current.zoomToFit(1500, 50);
+
+          // Save camera position whenever it changes
+          const saveCamera = () => {
+            if (graphRef.current) {
+              const position = graphRef.current.cameraPosition();
+              const camera = {
+                position: position,
+                lookAt: { x: 0, y: 0, z: 0 }, // Center of graph
+              };
+              try {
+                sessionStorage.setItem(cameraKey, JSON.stringify(camera));
+              } catch (error) {
+                console.log("Could not save camera:", error);
+              }
+            }
+          };
+
+          // Save camera position periodically
+          const saveInterval = setInterval(saveCamera, 1000);
+
+          // Cleanup interval on unmount
+          return () => clearInterval(saveInterval);
+        }
+      }, 500);
     }
   }, [graphData]);
 
@@ -556,16 +608,33 @@ export default function DashboardPage() {
         </div>
 
         {/* Right Half - Graph with Compliance Filters */}
-        <div className="flex w-1/2 flex-col">
+        <div className="relative flex w-1/2 flex-col">
           {/* Error Cards Strip - Horizontal Scrollable */}
           <div className="border-b border-blue-500/10 p-3">
-            <div className="flex gap-3 overflow-x-auto pb-1">
+            <div className="scrollbar-hide flex gap-3 overflow-x-auto pb-1">
               {filteredNodes
                 .filter((n) => n.type === "warn" || n.type === "fail")
                 .map((node) => (
                   <div
                     key={node.id}
-                    onClick={() => setSelectedNodeId(node.id)}
+                    onClick={() => {
+                      setSelectedNodeId(node.id);
+                      // Scroll to the node in the graph
+                      const targetNode = graphData.nodes.find(
+                        (n: any) => n.id === node.id,
+                      );
+                      if (targetNode && graphRef.current) {
+                        graphRef.current.cameraPosition(
+                          {
+                            x: targetNode.x,
+                            y: targetNode.y,
+                            z: targetNode.z + 200,
+                          },
+                          targetNode,
+                          1000,
+                        );
+                      }
+                    }}
                     className="glass-morphic group hover:blue-glow shrink-0 cursor-pointer rounded-xl border border-blue-500/15 p-3 transition-all duration-300 hover:border-blue-500/40 hover:bg-blue-600/10"
                     style={{ minWidth: "240px" }}
                   >
@@ -611,116 +680,6 @@ export default function DashboardPage() {
                 </div>
               )}
             </div>
-          </div>
-
-          {/* Camera Controls */}
-          <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
-            <button
-              onClick={() => {
-                const pos = graphRef.current.cameraPosition();
-                graphRef.current.cameraPosition(
-                  { x: pos.x, y: pos.y + 50, z: pos.z },
-                  undefined,
-                  500,
-                );
-              }}
-              className="glass-morphic cursor-pointer rounded-lg border border-blue-500/20 bg-blue-600/10 p-2 text-blue-400 transition-all hover:border-blue-500/40 hover:bg-blue-600/20"
-              title="Move Up"
-            >
-              <svg
-                className="h-5 w-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M5 15l7-7 7 7"
-                />
-              </svg>
-            </button>
-            <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  const pos = graphRef.current.cameraPosition();
-                  graphRef.current.cameraPosition(
-                    { x: pos.x - 50, y: pos.y, z: pos.z },
-                    undefined,
-                    500,
-                  );
-                }}
-                className="glass-morphic cursor-pointer rounded-lg border border-blue-500/20 bg-blue-600/10 p-2 text-blue-400 transition-all hover:border-blue-500/40 hover:bg-blue-600/20"
-                title="Move Left"
-              >
-                <svg
-                  className="h-5 w-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M15 19l-7-7 7-7"
-                  />
-                </svg>
-              </button>
-              <button
-                onClick={() => {
-                  const pos = graphRef.current.cameraPosition();
-                  graphRef.current.cameraPosition(
-                    { x: pos.x + 50, y: pos.y, z: pos.z },
-                    undefined,
-                    500,
-                  );
-                }}
-                className="glass-morphic cursor-pointer rounded-lg border border-blue-500/20 bg-blue-600/10 p-2 text-blue-400 transition-all hover:border-blue-500/40 hover:bg-blue-600/20"
-                title="Move Right"
-              >
-                <svg
-                  className="h-5 w-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 5l7 7-7 7"
-                  />
-                </svg>
-              </button>
-            </div>
-            <button
-              onClick={() => {
-                const pos = graphRef.current.cameraPosition();
-                graphRef.current.cameraPosition(
-                  { x: pos.x, y: pos.y - 50, z: pos.z },
-                  undefined,
-                  500,
-                );
-              }}
-              className="glass-morphic cursor-pointer rounded-lg border border-blue-500/20 bg-blue-600/10 p-2 text-blue-400 transition-all hover:border-blue-500/40 hover:bg-blue-600/20"
-              title="Move Down"
-            >
-              <svg
-                className="h-5 w-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 9l-7 7-7-7"
-                />
-              </svg>
-            </button>
           </div>
 
           {/* Node Detail Modal - Bottom Right */}
@@ -836,7 +795,7 @@ export default function DashboardPage() {
           )}
 
           {/* 3D Force Graph */}
-          <div className="relative flex-1 bg-[#0a0a0f]/50">
+          <div className="relative flex-1 overflow-hidden bg-[#0a0a0f]/50">
             <ForceGraph3D
               ref={graphRef}
               graphData={graphData}
@@ -888,6 +847,8 @@ export default function DashboardPage() {
                 return sphere;
               }}
               nodeThreeObjectExtend={true}
+              enableNodeDrag={true}
+              showNavInfo={false}
               d3AlphaDecay={0.01}
               d3VelocityDecay={0.3}
               warmupTicks={100}
