@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 
@@ -85,10 +85,18 @@ export default function HomePage() {
       // Start last step
       setCurrentStep(analysisSteps.length);
 
+      // Map frontend region names to backend country codes
+      const regionToCountry: Record<string, string> = {
+        us: "USA",
+        europe: "EU",
+        japan: "JAPAN",
+      };
+      const countryCode = regionToCountry[selectedRegion] || "USA";
+
       // Create FormData to send PDF to backend
       const formData = new FormData();
       formData.append("file", uploadedFile);
-      formData.append("country", "USA");
+      formData.append("country", countryCode);
       formData.append("top_k", "10");
       formData.append("num_chunks", "12");
       formData.append("compliance_focus", selectedStandard);
@@ -109,8 +117,9 @@ export default function HomePage() {
 
       const result = await response.json();
 
-      // Store compliance results in sessionStorage
+      // Store compliance results and selected country in sessionStorage
       sessionStorage.setItem("complianceResults", JSON.stringify(result));
+      sessionStorage.setItem("selectedCountry", countryCode);
 
       // Convert PDF to Markdown for display
       const markdownFormData = new FormData();
@@ -193,7 +202,7 @@ export default function HomePage() {
             Hello, Johnson!
           </h1>
           <p className="mb-2 text-xl text-gray-300">
-            I'm here to help you fast track compliance.
+            I&apos;m here to help you fast track compliance.
           </p>
           {/* <p className="mb-8 text-base text-gray-500">
             Let's compare regulatory excerpts against clinical documents.

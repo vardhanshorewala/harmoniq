@@ -6,7 +6,7 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-// @ts-ignore - d3-force types not required for build
+// @ts-expect-error - d3-force types not required for build
 import * as d3 from "d3-force";
 import * as THREE from "three";
 
@@ -83,8 +83,51 @@ export default function DashboardPage() {
   const [filterMode, setFilterMode] = useState<"all" | "violations" | "passed">(
     "violations",
   );
+  const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   const pdfBlobUrlRef = useRef<string | null>(null);
+
+  // Load country and violations FIRST (before graph loads)
+  useEffect(() => {
+    const storedCountry = sessionStorage.getItem("selectedCountry");
+    const storedResults = sessionStorage.getItem("complianceResults");
+    
+    // Load country
+    if (storedCountry) {
+      console.log("✅ Loading country from sessionStorage:", storedCountry);
+      setSelectedCountry(storedCountry);
+    } else {
+      console.warn("⚠️ No country in sessionStorage, defaulting to USA");
+      setSelectedCountry("USA");
+    }
+    
+    // Load violations early
+    if (storedResults) {
+      try {
+        const results = JSON.parse(storedResults);
+        const violatedIds = new Set<string>();
+        results.chunk_results?.forEach((chunk: any) => {
+          chunk.violations?.forEach((violation: any) => {
+            if (violation.regulation_id) {
+              violatedIds.add(violation.regulation_id);
+            }
+          });
+        });
+        
+        console.log("=== VIOLATIONS LOADED (EARLY) ===");
+        console.log("Total violations found:", violatedIds.size);
+        console.log("Violated regulation IDs:", Array.from(violatedIds));
+        console.log("=== END VIOLATIONS ===");
+        
+        setViolatedRegulationIds(violatedIds);
+      } catch (error) {
+        console.error("Error parsing compliance results:", error);
+      }
+    }
+    
+    setIsInitialized(true);
+  }, []);
 
   // Load markdown, PDF, and compliance results from sessionStorage
   useEffect(() => {
@@ -124,17 +167,7 @@ export default function DashboardPage() {
       try {
         const results = JSON.parse(storedResults);
         setComplianceResults(results);
-
-        // Extract all violated regulation IDs
-        const violatedIds = new Set<string>();
-        results.chunk_results?.forEach((chunk: any) => {
-          chunk.violations?.forEach((violation: any) => {
-            if (violation.regulation_id) {
-              violatedIds.add(violation.regulation_id);
-            }
-          });
-        });
-        setViolatedRegulationIds(violatedIds);
+        // Violations already loaded in early useEffect
       } catch (error) {
         console.error("Error parsing compliance results:", error);
       }
@@ -148,20 +181,32 @@ export default function DashboardPage() {
     };
   }, []);
 
-  // Fetch graph data from backend
+  // Fetch graph data from backend (only after initialization)
   useEffect(() => {
+    if (!isInitialized || !selectedCountry) {
+      console.log("⏳ Waiting for initialization...", { isInitialized, selectedCountry });
+      return;
+    }
+    
     const fetchGraphData = async () => {
       try {
         setIsLoadingGraph(true);
-        const response = await fetch(
-          "http://localhost:8000/api/regulations/graph/data",
-        );
+        const url = `http://localhost:8000/api/regulations/graph/data?country=${selectedCountry}`;
+        console.log("🌍 Fetching graph for country:", selectedCountry, "URL:", url);
+        
+        const response = await fetch(url);
 
         if (!response.ok) {
           throw new Error("Failed to fetch graph data");
         }
 
         const data = await response.json();
+
+        console.log("=== GRAPH DATA DEBUG ===");
+        console.log("Country requested:", selectedCountry);
+        console.log("Total nodes from backend:", data.nodes.length);
+        console.log("Violated regulation IDs:", Array.from(violatedRegulationIds));
+        console.log("Sample graph node IDs:", data.nodes.slice(0, 5).map((n: NodeData) => n.id));
 
         // Prioritize violated nodes when capping at 250 for performance
         let cappedNodes: NodeData[];
@@ -175,6 +220,16 @@ export default function DashboardPage() {
             (n: NodeData) => !violatedRegulationIds.has(n.id),
           );
 
+          console.log(`Found ${violatedNodes.length} violated nodes in graph out of ${violatedRegulationIds.size} expected`);
+          
+          if (violatedNodes.length === 0) {
+            console.warn("⚠️ NO VIOLATED NODES FOUND IN GRAPH!");
+            console.warn("Expected IDs:", Array.from(violatedRegulationIds).slice(0, 3));
+            console.warn("Available IDs:", data.nodes.slice(0, 3).map((n: NodeData) => n.id));
+          } else {
+            console.log("✓ Violated nodes found:", violatedNodes.map((n: NodeData) => n.id));
+          }
+
           // Take all violated nodes + fill up to 250 with non-violated
           const remainingSlots = Math.max(0, 250 - violatedNodes.length);
           cappedNodes = [
@@ -183,11 +238,12 @@ export default function DashboardPage() {
           ];
 
           console.log(
-            `Prioritized ${violatedNodes.length} violated nodes in graph`,
+            `Prioritized ${violatedNodes.length} violated nodes in graph (${cappedNodes.length} total)`,
           );
         } else {
           // No violations, just take first 250
           cappedNodes = data.nodes.slice(0, 250);
+          console.log("No violations to prioritize, showing first 250 nodes");
         }
 
         const nodeIds = new Set(cappedNodes.map((n: NodeData) => n.id));
@@ -201,10 +257,7 @@ export default function DashboardPage() {
         setEdges(cappedEdges);
 
         console.log("Graph nodes loaded:", cappedNodes.length);
-        console.log(
-          "Sample node IDs:",
-          cappedNodes.slice(0, 5).map((n: NodeData) => n.id),
-        );
+        console.log("=== END DEBUG ===");
       } catch (error) {
         console.error("Error fetching graph data:", error);
         // Keep empty arrays on error
@@ -216,7 +269,7 @@ export default function DashboardPage() {
     };
 
     fetchGraphData();
-  }, [violatedRegulationIds]);
+  }, [isInitialized, violatedRegulationIds, selectedCountry]);
   const [graphData, setGraphData] = useState<{
     nodes: GraphNode[];
     links: GraphLink[];
@@ -268,6 +321,7 @@ export default function DashboardPage() {
       const formData = new FormData();
       formData.append("file", blob, fileName || "protocol.pdf");
       formData.append("compliance_results", JSON.stringify(complianceResults));
+      formData.append("country", selectedCountry || "USA");
 
       // Send to backend
       const fixResponse = await fetch(
@@ -1106,6 +1160,12 @@ export default function DashboardPage() {
                           violations: [],
                         }));
                       }
+
+                      console.log("=== DETAILS PANEL DEBUG ===");
+                      console.log("Filter mode:", filterMode);
+                      console.log("Violated nodes found:", violatedNodes.length);
+                      console.log("Nodes to display:", nodesWithViolations.length);
+                      console.log("=== END DETAILS PANEL ===");
 
                       return nodesWithViolations.length > 0 ? (
                         (() => {
