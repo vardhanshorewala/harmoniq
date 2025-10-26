@@ -69,6 +69,7 @@ export default function DashboardPage() {
   const [fixError, setFixError] = useState<string | null>(null);
   const [proposedChanges, setProposedChanges] = useState<any[]>([]);
   const [showDiffs, setShowDiffs] = useState(false);
+  const [filterMode, setFilterMode] = useState<"all" | "violations" | "passed">("all");
   
   const pdfBlobUrlRef = useRef<string | null>(null);
 
@@ -730,54 +731,50 @@ export default function DashboardPage() {
               {/* Header with Toggle */}
               <div className="flex items-center justify-between p-4">
                 <div className="flex items-center gap-3">
-                  <div className={`flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br backdrop-blur-xl ${
-                    violatedRegulationIds.size > 0 
-                      ? "from-red-500/20 to-red-600/20" 
-                      : "from-green-500/20 to-green-600/20"
-                  }`}>
-                    {violatedRegulationIds.size > 0 ? (
-                      <svg
-                        className="h-5 w-5 text-red-400"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                        />
-                      </svg>
-                    ) : (
-                      <svg
-                        className="h-5 w-5 text-green-400"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                        />
-                      </svg>
-                    )}
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-yellow-500/20 to-yellow-600/20 backdrop-blur-xl">
+                    <svg
+                      className="h-5 w-5 text-yellow-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
                   </div>
                   <div className="overflow-hidden">
-                    <h3 className={`text-sm font-semibold transition-all duration-300 ${
-                      violatedRegulationIds.size > 0 ? "text-red-400" : "text-green-400"
-                    }`}>
-                      {violatedRegulationIds.size > 0 
-                        ? (isDetailsPanelExpanded ? "Compliance Violations" : "Violations Detected")
-                        : "All Compliant"}
+                    <h3 className="text-sm font-semibold text-yellow-400 transition-all duration-300">
+                      Compliance Status
                     </h3>
-                    <p className="text-xs text-gray-400 transition-all duration-300">
-                      {violatedRegulationIds.size > 0 
-                        ? `${violatedRegulationIds.size} violations • ${complianceResults?.critical_violations || 0} critical`
-                        : `${stats.total} regulations checked • 0 violations`}
-                    </p>
+                    <div className="flex items-center gap-2 text-xs transition-all duration-300">
+                      {violatedRegulationIds.size > 0 ? (
+                        <>
+                          <button
+                            onClick={() => setFilterMode(filterMode === "violations" ? "all" : "violations")}
+                            className={`cursor-pointer rounded px-2 py-0.5 transition-all hover:bg-red-500/20 ${
+                              filterMode === "violations" ? "bg-red-500/20 text-red-400 font-semibold" : "text-gray-400"
+                            }`}
+                          >
+                            {violatedRegulationIds.size} violations
+                          </button>
+                          <span className="text-gray-600">•</span>
+                          <button
+                            onClick={() => setFilterMode(filterMode === "passed" ? "all" : "passed")}
+                            className={`cursor-pointer rounded px-2 py-0.5 transition-all hover:bg-green-500/20 ${
+                              filterMode === "passed" ? "bg-green-500/20 text-green-400 font-semibold" : "text-gray-400"
+                            }`}
+                          >
+                            {stats.total - violatedRegulationIds.size} passed
+                          </button>
+                        </>
+                      ) : (
+                        <span className="text-gray-400">{stats.total} regulations checked • 0 violations</span>
+                      )}
+                    </div>
                   </div>
                 </div>
                 
@@ -853,7 +850,7 @@ export default function DashboardPage() {
                 const violatedNodes = nodes.filter((n) => violatedRegulationIds.has(n.id));
                 
                 // Get violation details for each node
-                const nodesWithViolations = violatedNodes.map((node) => {
+                const allNodesWithViolations = violatedNodes.map((node) => {
                   const violations: any[] = [];
                   complianceResults?.chunk_results?.forEach((chunk: any) => {
                     chunk.violations?.forEach((v: any) => {
@@ -867,6 +864,16 @@ export default function DashboardPage() {
                   });
                   return { node, violations };
                 });
+                
+                // Filter based on selected mode
+                let nodesWithViolations = allNodesWithViolations;
+                if (filterMode === "violations") {
+                  nodesWithViolations = allNodesWithViolations;
+                } else if (filterMode === "passed") {
+                  // Show passed nodes (non-violated nodes)
+                  const passedNodes = nodes.filter((n) => !violatedRegulationIds.has(n.id));
+                  nodesWithViolations = passedNodes.map((node) => ({ node, violations: [] }));
+                }
                 
                 return nodesWithViolations.length > 0 ? (
                   nodesWithViolations
@@ -894,9 +901,11 @@ export default function DashboardPage() {
                           }
                         }
                       }}
-                      className={`glass-morphic group hover:blue-glow cursor-pointer rounded-2xl border border-blue-500/15 p-4 transition-all duration-300 hover:border-blue-500/40 hover:bg-blue-600/10 hover:shadow-lg hover:shadow-blue-500/20 ${
-                        isDetailsPanelExpanded ? "" : "shrink-0"
-                      }`}
+                      className={`glass-morphic group cursor-pointer rounded-2xl border p-4 transition-all duration-300 hover:shadow-lg ${
+                        violations.length > 0
+                          ? "hover:blue-glow border-blue-500/15 hover:border-blue-500/40 hover:bg-blue-600/10 hover:shadow-blue-500/20"
+                          : "border-green-500/15 hover:border-green-500/40 hover:bg-green-600/10 hover:shadow-green-500/20"
+                      } ${isDetailsPanelExpanded ? "" : "shrink-0"}`}
                       style={!isDetailsPanelExpanded ? { minWidth: "240px" } : {}}
                     >
                       <div className="mb-3 flex items-start justify-between">
@@ -904,13 +913,15 @@ export default function DashboardPage() {
                           <h4 className="text-sm font-bold text-white">
                             {node.section || node.clause_number}
                           </h4>
-                          <p className="text-xs text-red-400 font-semibold">
-                            VIOLATION DETECTED
+                          <p className={`text-xs font-semibold ${violations.length > 0 ? "text-red-400" : "text-green-400"}`}>
+                            {violations.length > 0 ? "VIOLATION DETECTED" : "COMPLIANT"}
                           </p>
                         </div>
-                        <span className="rounded-lg px-2 py-1 text-xs font-semibold bg-red-500/20 text-red-400">
-                          {node.severity}
-                        </span>
+                        {violations.length > 0 && (
+                          <span className="rounded-lg px-2 py-1 text-xs font-semibold bg-red-500/20 text-red-400">
+                            {node.severity}
+                          </span>
+                        )}
                       </div>
                       
                       {/* Regulation Text */}
