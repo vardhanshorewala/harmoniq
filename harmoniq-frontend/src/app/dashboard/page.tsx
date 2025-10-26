@@ -1,13 +1,295 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
+import Link from "next/link";
+import dynamic from "next/dynamic";
+// @ts-ignore - d3-force types not required for build
+import * as d3 from "d3-force";
+import * as THREE from "three";
+
+// Dynamically import ForceGraph3D to avoid SSR issues
+const ForceGraph3D = dynamic(() => import("react-force-graph-3d"), {
+  ssr: false,
+});
+
+interface NodeData {
+  id: string;
+  title: string;
+  type: "pass" | "warn" | "fail";
+  requirement: string;
+  citation: string;
+  location: string;
+  confidence: number;
+  size: "small" | "medium" | "large";
+  connections: string[];
+}
+
+interface GraphNode {
+  id: string;
+  name: string;
+  val: number;
+  color: string;
+  nodeData: NodeData;
+  x?: number;
+  y?: number;
+}
+
+interface GraphLink {
+  source: string;
+  target: string;
+  color: string;
+  width: number;
+}
 
 export default function DashboardPage() {
-  const [activeTab, setActiveTab] = useState<"diffs" | "graph">("diffs");
   const [searchQuery, setSearchQuery] = useState("");
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const profileRef = useRef<HTMLDivElement>(null);
+  const [complianceFilter, setComplianceFilter] = useState<
+    "all" | "pass" | "warn" | "fail"
+  >("all");
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [fileName, setFileName] = useState<string>("");
+
+  // Load PDF from sessionStorage
+  useEffect(() => {
+    const storedUrl = sessionStorage.getItem("uploadedFileUrl");
+    const storedName = sessionStorage.getItem("uploadedFileName");
+    if (storedUrl) setPdfUrl(storedUrl);
+    if (storedName) setFileName(storedName);
+  }, []);
+  const [nodes] = useState<NodeData[]>([
+    {
+      id: "req-1",
+      title: "Study Purpose",
+      type: "pass",
+      requirement: "Informed consent must include study purpose and duration",
+      citation: "21 CFR 50.25(a)(1)",
+      location: "Section 2.1, Page 3",
+      confidence: 98,
+      size: "large",
+      connections: ["req-2", "req-6", "req-8"],
+    },
+    {
+      id: "req-2",
+      title: "Risk Disclosure",
+      type: "warn",
+      requirement: "Description of reasonably foreseeable risks or discomforts",
+      citation: "21 CFR 50.25(a)(2)",
+      location: "Section 4.2, Page 7",
+      confidence: 72,
+      size: "medium",
+      connections: ["req-1", "req-3", "req-7"],
+    },
+    {
+      id: "req-3",
+      title: "Alternatives",
+      type: "fail",
+      requirement:
+        "Alternative procedures or courses of treatment must be disclosed",
+      citation: "21 CFR 50.25(a)(4)",
+      location: "Missing",
+      confidence: 95,
+      size: "large",
+      connections: ["req-2", "req-4"],
+    },
+    {
+      id: "req-4",
+      title: "Confidentiality",
+      type: "pass",
+      requirement: "Confidentiality statement and limits clearly defined",
+      citation: "21 CFR 50.25(a)(5)",
+      location: "Section 8.1, Page 12",
+      confidence: 96,
+      size: "medium",
+      connections: ["req-3", "req-5", "req-9"],
+    },
+    {
+      id: "req-5",
+      title: "Contact Info",
+      type: "warn",
+      requirement:
+        "Contact information for questions about research and rights",
+      citation: "21 CFR 50.25(a)(7)",
+      location: "Section 9.3, Page 14",
+      confidence: 68,
+      size: "small",
+      connections: ["req-4", "req-6"],
+    },
+    {
+      id: "req-6",
+      title: "Voluntary Participation",
+      type: "pass",
+      requirement: "Statement that participation is voluntary",
+      citation: "21 CFR 50.25(a)(8)",
+      location: "Section 1.2, Page 2",
+      confidence: 99,
+      size: "large",
+      connections: ["req-1", "req-5", "req-10"],
+    },
+    {
+      id: "req-7",
+      title: "Benefits",
+      type: "pass",
+      requirement: "Description of anticipated benefits to the subject",
+      citation: "21 CFR 50.25(a)(3)",
+      location: "Section 3.1, Page 5",
+      confidence: 88,
+      size: "medium",
+      connections: ["req-2", "req-8"],
+    },
+    {
+      id: "req-8",
+      title: "Compensation",
+      type: "warn",
+      requirement:
+        "Disclosure of compensation and medical treatments available",
+      citation: "21 CFR 50.25(a)(6)",
+      location: "Section 7.4, Page 10",
+      confidence: 75,
+      size: "small",
+      connections: ["req-1", "req-7", "req-9"],
+    },
+    {
+      id: "req-9",
+      title: "Right to Withdraw",
+      type: "pass",
+      requirement: "Statement about right to withdraw without penalty",
+      citation: "21 CFR 50.25(a)(8)",
+      location: "Section 1.5, Page 2",
+      confidence: 94,
+      size: "medium",
+      connections: ["req-4", "req-8", "req-10"],
+    },
+    {
+      id: "req-10",
+      title: "IRB Approval",
+      type: "pass",
+      requirement: "Statement that protocol has been reviewed by IRB",
+      citation: "21 CFR 56.109(e)",
+      location: "Section 10.1, Page 15",
+      confidence: 97,
+      size: "medium",
+      connections: ["req-6", "req-9"],
+    },
+    {
+      id: "req-11",
+      title: "Data Handling",
+      type: "warn",
+      requirement: "Description of how data will be collected and stored",
+      citation: "ICH-GCP E6 4.8.10",
+      location: "Section 8.3, Page 12",
+      confidence: 70,
+      size: "small",
+      connections: ["req-4", "req-12"],
+    },
+    {
+      id: "req-12",
+      title: "Subject Responsibilities",
+      type: "pass",
+      requirement: "Clear statement of subject's responsibilities",
+      citation: "ICH-GCP E6 4.8.5",
+      location: "Section 5.2, Page 8",
+      confidence: 91,
+      size: "small",
+      connections: ["req-11", "req-13"],
+    },
+    {
+      id: "req-13",
+      title: "Study Duration",
+      type: "pass",
+      requirement: "Expected duration of subject's participation",
+      citation: "21 CFR 50.25(a)(1)",
+      location: "Section 2.3, Page 4",
+      confidence: 99,
+      size: "small",
+      connections: ["req-12", "req-1"],
+    },
+    {
+      id: "req-14",
+      title: "Costs to Subject",
+      type: "fail",
+      requirement: "Disclosure of costs subject may incur",
+      citation: "21 CFR 50.25(b)(3)",
+      location: "Missing",
+      confidence: 88,
+      size: "medium",
+      connections: ["req-8", "req-15"],
+    },
+    {
+      id: "req-15",
+      title: "Injury Compensation",
+      type: "warn",
+      requirement: "Explanation of compensation for injury",
+      citation: "21 CFR 50.25(a)(6)",
+      location: "Section 7.1, Page 9",
+      confidence: 65,
+      size: "small",
+      connections: ["req-14", "req-16"],
+    },
+    {
+      id: "req-16",
+      title: "Study Procedures",
+      type: "pass",
+      requirement: "Description of procedures to be followed",
+      citation: "21 CFR 50.25(a)(1)",
+      location: "Section 3.5, Page 6",
+      confidence: 93,
+      size: "medium",
+      connections: ["req-15", "req-7"],
+    },
+    {
+      id: "req-17",
+      title: "Privacy Protection",
+      type: "pass",
+      requirement: "Statement about confidentiality of records",
+      citation: "45 CFR 164.508",
+      location: "Section 8.2, Page 11",
+      confidence: 95,
+      size: "small",
+      connections: ["req-4", "req-11"],
+    },
+    {
+      id: "req-18",
+      title: "Unforeseeable Risks",
+      type: "warn",
+      requirement: "Statement about unforeseeable risks",
+      citation: "21 CFR 50.25(b)(1)",
+      location: "Section 4.5, Page 7",
+      confidence: 60,
+      size: "small",
+      connections: ["req-2", "req-15"],
+    },
+    {
+      id: "req-19",
+      title: "Protocol Deviations",
+      type: "fail",
+      requirement: "Explanation of consequences of protocol deviations",
+      citation: "ICH-GCP E6 4.8.9",
+      location: "Missing",
+      confidence: 92,
+      size: "medium",
+      connections: ["req-12", "req-9"],
+    },
+    {
+      id: "req-20",
+      title: "New Findings",
+      type: "pass",
+      requirement: "Statement about new findings disclosure",
+      citation: "21 CFR 50.25(b)(5)",
+      location: "Section 6.2, Page 9",
+      confidence: 89,
+      size: "small",
+      connections: ["req-2", "req-18"],
+    },
+  ]);
+  const [graphData, setGraphData] = useState<{
+    nodes: GraphNode[];
+    links: GraphLink[];
+  }>({ nodes: [], links: [] });
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
+  const graphRef = useRef<any>(null);
 
   const handleProfileClick = () => {
     setShowProfileMenu(!showProfileMenu);
@@ -33,58 +315,138 @@ export default function DashboardPage() {
     };
   }, [showProfileMenu]);
 
-  const complianceItems = [
-    {
-      id: 1,
-      status: "pass",
-      requirement: "Informed consent must include study purpose and duration",
-      citation: "21 CFR 50.25(a)(1)",
-      location: "Section 2.1, Page 3",
-      confidence: 98,
+  // Configure force simulation after mount for 3D and center on main node
+  useEffect(() => {
+    if (graphRef.current && graphData.nodes.length > 0) {
+      // Configure 3D forces with closer nodes
+      graphRef.current.d3Force("charge", d3.forceManyBody().strength(-1200));
+      graphRef.current.d3Force(
+        "link",
+        d3.forceLink().distance(150).strength(0.15),
+      );
+
+      // Remove center force to allow true 3D distribution
+      graphRef.current.d3Force("center", null);
+      graphRef.current.d3Force("collision", d3.forceCollide().radius(80));
+
+      // Distribute nodes in 3D space with good z-spread
+      graphData.nodes.forEach((node: any) => {
+        if (!node.z || node.z === 0) {
+          // Give each node a significant z-position for true 3D effect
+          node.z = (Math.random() - 0.5) * 400;
+        }
+        if (!node.y) {
+          node.y = (Math.random() - 0.5) * 350;
+        }
+        if (!node.x) {
+          node.x = (Math.random() - 0.5) * 350;
+        }
+      });
+
+      // Find the central node (req-1: Study Purpose)
+      const centralNode = graphData.nodes.find((n: any) => n.id === "req-1");
+
+      if (centralNode) {
+        // Zoom out to show all nodes initially
+        setTimeout(() => {
+          graphRef.current.cameraPosition(
+            { x: 0, y: 0, z: 600 },
+            { x: 0, y: 0, z: 0 },
+            1000,
+          );
+        }, 100);
+      }
+    }
+  }, [graphData]);
+
+  // Generate graph data for react-force-graph
+  const generateGraphData = useCallback(() => {
+    const filteredNodes =
+      complianceFilter === "all"
+        ? nodes
+        : nodes.filter((n) => n.type === complianceFilter);
+
+    const newGraphNodes: GraphNode[] = filteredNodes.map((node) => {
+      const sizeMap = { small: 8, medium: 12, large: 16 };
+      const nodeSize = sizeMap[node.size];
+
+      // Use blue for all nodes with varying intensity
+      let color;
+      if (node.type === "pass") {
+        color = "rgba(59, 130, 246, 0.9)"; // Bright blue
+      } else if (node.type === "warn") {
+        color = "rgba(96, 165, 250, 0.8)"; // Light blue
+      } else {
+        color = "rgba(37, 99, 235, 0.85)"; // Deep blue
+      }
+
+      return {
+        id: node.id,
+        name: node.title,
+        val: nodeSize,
+        color: color,
+        nodeData: node,
+      };
+    });
+
+    // Generate links based on node connections
+    const newGraphLinks: GraphLink[] = [];
+    const nodeIds = new Set(filteredNodes.map((n) => n.id));
+
+    filteredNodes.forEach((node) => {
+      node.connections.forEach((connectedNodeId) => {
+        if (nodeIds.has(connectedNodeId)) {
+          const linkExists = newGraphLinks.some(
+            (link) =>
+              (link.source === node.id && link.target === connectedNodeId) ||
+              (link.source === connectedNodeId && link.target === node.id),
+          );
+
+          if (!linkExists) {
+            newGraphLinks.push({
+              source: node.id,
+              target: connectedNodeId,
+              color: "rgba(59, 130, 246, 0.15)",
+              width: 1.5,
+            });
+          }
+        }
+      });
+    });
+
+    setGraphData({ nodes: newGraphNodes, links: newGraphLinks });
+  }, [nodes, complianceFilter]);
+
+  useEffect(() => {
+    generateGraphData();
+  }, [generateGraphData]);
+
+  // Handle node click in graph
+  const handleNodeClick = useCallback(
+    (node: any) => {
+      setSelectedNodeId(selectedNodeId === node.id ? null : node.id);
     },
-    {
-      id: 2,
-      status: "warn",
-      requirement: "Description of reasonably foreseeable risks or discomforts",
-      citation: "21 CFR 50.25(a)(2)",
-      location: "Section 4.2, Page 7",
-      confidence: 72,
-    },
-    {
-      id: 3,
-      status: "fail",
-      requirement:
-        "Alternative procedures or courses of treatment must be disclosed",
-      citation: "21 CFR 50.25(a)(4)",
-      location: "Missing",
-      confidence: 95,
-    },
-    {
-      id: 4,
-      status: "pass",
-      requirement: "Confidentiality statement and limits clearly defined",
-      citation: "21 CFR 50.25(a)(5)",
-      location: "Section 8.1, Page 12",
-      confidence: 96,
-    },
-    {
-      id: 5,
-      status: "warn",
-      requirement:
-        "Contact information for questions about research and rights",
-      citation: "21 CFR 50.25(a)(7)",
-      location: "Section 9.3, Page 14",
-      confidence: 68,
-    },
-    {
-      id: 6,
-      status: "pass",
-      requirement: "Statement that participation is voluntary",
-      citation: "21 CFR 50.25(a)(8)",
-      location: "Section 1.2, Page 2",
-      confidence: 99,
-    },
-  ];
+    [selectedNodeId],
+  );
+
+  // Handle node hover
+  const handleNodeHover = useCallback((node: any) => {
+    setHoveredNode(node);
+  }, []);
+
+  const profileRef = useRef<HTMLDivElement>(null);
+
+  const filteredNodes =
+    complianceFilter === "all"
+      ? nodes
+      : nodes.filter((n) => n.type === complianceFilter);
+
+  const stats = {
+    total: nodes.length,
+    pass: nodes.filter((n) => n.type === "pass").length,
+    warn: nodes.filter((n) => n.type === "warn").length,
+    fail: nodes.filter((n) => n.type === "fail").length,
+  };
 
   return (
     <main className="min-h-screen bg-[#0a0a0f]">
@@ -95,48 +457,27 @@ export default function DashboardPage() {
       </div>
 
       {/* Top Navigation Bar */}
-      <nav className="glass-morphic-strong fixed top-0 right-0 left-0 z-50 border-b border-blue-500/20">
-        <div className="mx-auto flex h-20 max-w-screen-2xl items-center justify-between px-6">
-          {/* Logo */}
-          <div>
-            <Image
-              src="/full-logo.png"
-              alt="Harmoniq Logo"
-              width={120}
-              height={40}
-              className="h-10 w-[120px] object-contain"
-              quality={100}
-              unoptimized
-            />
-          </div>
-
-          {/* Search Bar */}
-          <div className="flex-1 px-8">
-            <div className="glass-morphic blue-glow-hover relative max-w-2xl rounded-xl transition-all duration-300">
-              <input
-                type="text"
-                placeholder="Search regulations, requirements, or citations..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full cursor-text bg-transparent px-6 py-3 text-sm text-white placeholder-gray-400 outline-none"
+      <nav className="fixed top-0 right-0 left-0 z-50 border-b border-blue-500/20 bg-[#0a0a0f]/95 backdrop-blur-xl">
+        <div className="flex h-20 items-center justify-between px-6">
+          {/* Logo - Clickable to go home (fixed position) */}
+          <div className="w-[120px]">
+            <Link href="/" className="cursor-pointer">
+              <Image
+                src="/full-logo.png"
+                alt="Harmoniq Logo"
+                width={120}
+                height={40}
+                className="h-10 w-[120px] object-contain"
+                quality={100}
+                unoptimized
               />
-              <svg
-                className="absolute top-1/2 right-4 h-5 w-5 -translate-y-1/2 text-gray-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                />
-              </svg>
-            </div>
+            </Link>
           </div>
 
-          {/* Profile */}
+          {/* Spacer */}
+          <div className="flex-1"></div>
+
+          {/* Profile (fixed position) */}
           <div className="relative" ref={profileRef}>
             <button
               onClick={handleProfileClick}
@@ -178,279 +519,382 @@ export default function DashboardPage() {
       </nav>
 
       {/* Main Content */}
-      <div className="mx-auto max-w-screen-2xl px-6 pt-24">
-        <div className="grid grid-cols-2 gap-6">
-          {/* Left Panel - PDF Viewer */}
-          <div className="glass-morphic-strong h-[calc(100vh-7rem)] overflow-hidden rounded-2xl">
-            <div className="border-b border-blue-500/20 p-4">
-              <h2 className="text-lg font-semibold text-white">
-                Clinical Document
-              </h2>
-              <p className="text-sm text-gray-400">
-                informed_consent_form_v3.pdf
-              </p>
-            </div>
-            <div className="h-full overflow-y-auto p-6">
-              {/* PDF Preview Placeholder */}
-              <div className="glass-morphic space-y-4 rounded-xl p-8">
-                <div className="mb-6 flex items-center justify-between border-b border-blue-500/20 pb-4">
-                  <h3 className="text-xl font-bold text-white">
-                    Informed Consent Form
-                  </h3>
-                  <span className="rounded-full bg-blue-600/30 px-3 py-1 text-xs text-blue-300">
-                    Version 3.2
-                  </span>
-                </div>
-
-                <div className="space-y-4 text-gray-300">
-                  <p className="leading-relaxed">
-                    <span className="font-semibold text-blue-400">
-                      Section 1: Introduction
-                    </span>
-                    <br />
-                    You are being asked to participate in a clinical research
-                    study. This consent form provides information about the
-                    study. Please read this form carefully.
+      <div className="flex h-screen pt-20">
+        {/* Left Half - PDF Viewer */}
+        <div className="w-1/2 border-r border-blue-500/10 p-4">
+          <div className="h-full overflow-hidden rounded-2xl border border-blue-500/10">
+            {pdfUrl ? (
+              <iframe
+                src={pdfUrl}
+                className="h-full w-full border-0"
+                title="PDF Viewer"
+              />
+            ) : (
+              <div className="flex h-full items-center justify-center bg-[#0a0f1e]/50 p-6">
+                <div className="text-center">
+                  <svg
+                    className="mx-auto mb-4 h-16 w-16 text-gray-500"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1.5}
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    />
+                  </svg>
+                  <p className="text-sm text-gray-400">No PDF uploaded yet</p>
+                  <p className="mt-2 text-xs text-gray-500">
+                    Upload a document from the home page
                   </p>
-
-                  <p className="leading-relaxed">
-                    <span className="font-semibold text-blue-400">
-                      Section 2: Study Purpose and Duration
-                    </span>
-                    <br />
-                    The purpose of this study is to evaluate the safety and
-                    efficacy of the investigational drug XYZ-123 in patients
-                    with condition ABC. Your participation will last
-                    approximately 12 months.
-                  </p>
-
-                  <p className="leading-relaxed">
-                    <span className="font-semibold text-blue-400">
-                      Section 4: Risks and Discomforts
-                    </span>
-                    <br />
-                    Possible risks include mild headache, nausea, and fatigue.
-                    Some participants may experience more serious side effects.
-                  </p>
-
-                  <p className="leading-relaxed">
-                    <span className="font-semibold text-blue-400">
-                      Section 8: Confidentiality
-                    </span>
-                    <br />
-                    Your personal information will be kept confidential.
-                    However, regulatory authorities may review your records as
-                    required by law.
-                  </p>
-
-                  <div className="mt-8 rounded-lg bg-blue-600/10 p-4">
-                    <p className="text-sm text-blue-300">
-                      📄 Analyzing against 21 CFR Part 50 requirements...
-                    </p>
-                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
+        </div>
 
-          {/* Right Panel - Diffs/Graph View */}
-          <div className="glass-morphic-strong h-[calc(100vh-7rem)] overflow-hidden rounded-2xl">
-            {/* Tab Switcher */}
-            <div className="border-b border-blue-500/20 p-4">
-              <div className="glass-morphic inline-flex rounded-xl p-1">
-                <button
-                  onClick={() => setActiveTab("diffs")}
-                  className={`cursor-pointer rounded-lg px-6 py-2 text-sm font-medium transition-all duration-300 ${
-                    activeTab === "diffs"
-                      ? "blue-glow border border-blue-500/60 bg-blue-600/20 text-blue-300"
-                      : "border border-transparent bg-transparent text-gray-400 hover:border-blue-500/40 hover:bg-blue-600/10 hover:text-white"
-                  }`}
-                >
-                  Compliance Checklist
-                </button>
-                <button
-                  onClick={() => setActiveTab("graph")}
-                  className={`cursor-pointer rounded-lg px-6 py-2 text-sm font-medium transition-all duration-300 ${
-                    activeTab === "graph"
-                      ? "blue-glow border border-blue-500/60 bg-blue-600/20 text-blue-300"
-                      : "border border-transparent bg-transparent text-gray-400 hover:border-blue-500/40 hover:bg-blue-600/10 hover:text-white"
-                  }`}
-                >
-                  Summary
-                </button>
-              </div>
-            </div>
-
-            {/* Content Area */}
-            <div className="h-full overflow-y-auto p-6">
-              {activeTab === "diffs" ? (
-                <div className="space-y-4">
-                  <div className="mb-4 flex items-center justify-between">
-                    <h3 className="text-lg font-semibold text-white">
-                      Regulatory Compliance
-                    </h3>
-                    <button className="group hover:blue-glow cursor-pointer rounded-lg border border-blue-500/30 bg-transparent px-4 py-2 text-sm text-blue-400 transition-all duration-300 hover:border-blue-500/60 hover:bg-blue-600/20">
-                      Export ICF Update Pack
-                    </button>
-                  </div>
-
-                  {complianceItems.map((item) => (
-                    <div
-                      key={item.id}
-                      className="glass-morphic group hover:blue-glow rounded-xl p-4 transition-all duration-300"
-                    >
-                      <div className="mb-3 flex items-start justify-between">
-                        <div className="flex items-start gap-3">
-                          <div
-                            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-                              item.status === "pass"
-                                ? "bg-green-600/20 text-green-400"
-                                : item.status === "warn"
-                                  ? "bg-yellow-600/20 text-yellow-400"
-                                  : "bg-red-600/20 text-red-400"
-                            }`}
-                          >
-                            {item.status === "pass"
-                              ? "✓"
-                              : item.status === "warn"
-                                ? "⚠"
-                                : "✕"}
-                          </div>
-                          <div className="flex-1">
-                            <p className="mb-1 text-sm font-medium text-white">
-                              {item.requirement}
-                            </p>
-                            <div className="flex flex-wrap items-center gap-3 text-xs text-gray-400">
-                              <span className="rounded bg-blue-600/20 px-2 py-0.5 font-mono text-blue-300">
-                                {item.citation}
-                              </span>
-                              <span>→ {item.location}</span>
-                              <span className="text-gray-500">
-                                {item.confidence}% confidence
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="opacity-0 transition-opacity group-hover:opacity-100">
-                          <button className="cursor-pointer rounded-lg border border-blue-500/30 bg-transparent px-3 py-1 text-xs text-blue-400 transition-all hover:border-blue-500/60 hover:bg-blue-600/20">
-                            View Details
-                          </button>
-                        </div>
+        {/* Right Half - Graph with Compliance Filters */}
+        <div className="flex w-1/2 flex-col">
+          {/* Error Cards Strip - Horizontal Scrollable */}
+          <div className="border-b border-blue-500/10 p-3">
+            <div className="flex gap-3 overflow-x-auto pb-1">
+              {filteredNodes
+                .filter((n) => n.type === "warn" || n.type === "fail")
+                .map((node) => (
+                  <div
+                    key={node.id}
+                    onClick={() => setSelectedNodeId(node.id)}
+                    className="glass-morphic group hover:blue-glow shrink-0 cursor-pointer rounded-xl border border-blue-500/15 p-3 transition-all duration-300 hover:border-blue-500/40 hover:bg-blue-600/10"
+                    style={{ minWidth: "240px" }}
+                  >
+                    <div className="mb-2 flex items-center gap-2">
+                      <div
+                        className={`flex h-6 w-6 items-center justify-center rounded-lg ${
+                          node.type === "warn"
+                            ? "bg-yellow-600/20 text-yellow-400"
+                            : "bg-red-600/20 text-red-400"
+                        }`}
+                      >
+                        {node.type === "warn" ? "⚠" : "✕"}
                       </div>
-                    </div>
-                  ))}
-
-                  <div className="glass-morphic mt-6 rounded-xl p-6">
-                    <div className="mb-4 flex items-center justify-between">
                       <h4 className="text-sm font-semibold text-white">
-                        Compliance Summary
+                        {node.title}
                       </h4>
                     </div>
-                    <div className="grid grid-cols-3 gap-4">
-                      <div className="text-center">
-                        <p className="text-2xl font-bold text-green-400">3</p>
-                        <p className="text-xs text-gray-400">Passed</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-2xl font-bold text-yellow-400">2</p>
-                        <p className="text-xs text-gray-400">Warnings</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-2xl font-bold text-red-400">1</p>
-                        <p className="text-xs text-gray-400">Failed</p>
-                      </div>
-                    </div>
+                    <p className="mb-2 text-xs text-gray-400">
+                      {node.citation}
+                    </p>
+                    <p className="text-xs text-gray-500">{node.location}</p>
                   </div>
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  <h3 className="text-lg font-semibold text-white">
-                    Analysis Summary
-                  </h3>
+                ))}
 
-                  {/* Stats Cards */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="glass-morphic hover:blue-glow rounded-xl border border-blue-500/20 p-6 transition-all duration-300 hover:border-blue-500/40">
-                      <p className="mb-1 text-sm text-gray-400">
-                        Requirements Checked
-                      </p>
-                      <p className="text-3xl font-bold text-white">6</p>
-                    </div>
-                    <div className="glass-morphic hover:blue-glow rounded-xl border border-blue-500/20 p-6 transition-all duration-300 hover:border-blue-500/40">
-                      <p className="mb-1 text-sm text-gray-400">
-                        Compliance Rate
-                      </p>
-                      <p className="text-3xl font-bold text-yellow-400">50%</p>
-                    </div>
-                    <div className="glass-morphic hover:blue-glow rounded-xl border border-blue-500/20 p-6 transition-all duration-300 hover:border-blue-500/40">
-                      <p className="mb-1 text-sm text-gray-400">
-                        Avg Confidence
-                      </p>
-                      <p className="text-3xl font-bold text-green-400">88%</p>
-                    </div>
-                    <div className="glass-morphic hover:blue-glow rounded-xl border border-blue-500/20 p-6 transition-all duration-300 hover:border-blue-500/40">
-                      <p className="mb-1 text-sm text-gray-400">
-                        Analysis Time
-                      </p>
-                      <p className="text-3xl font-bold text-white">1.8s</p>
-                    </div>
-                  </div>
-
-                  {/* Regulatory Coverage */}
-                  <div className="glass-morphic rounded-xl p-6">
-                    <h4 className="mb-4 text-sm font-semibold text-white">
-                      Regulatory Coverage (21 CFR Part 50)
-                    </h4>
-                    <div className="space-y-3">
-                      <div>
-                        <div className="mb-1 flex justify-between text-xs">
-                          <span className="text-gray-400">
-                            50.25(a)(1) - Purpose & Duration
-                          </span>
-                          <span className="text-green-400">100%</span>
-                        </div>
-                        <div className="h-2 overflow-hidden rounded-full bg-gray-700">
-                          <div className="h-full w-full bg-linear-to-r from-green-600 to-green-400"></div>
-                        </div>
-                      </div>
-                      <div>
-                        <div className="mb-1 flex justify-between text-xs">
-                          <span className="text-gray-400">
-                            50.25(a)(2) - Risks
-                          </span>
-                          <span className="text-yellow-400">72%</span>
-                        </div>
-                        <div className="h-2 overflow-hidden rounded-full bg-gray-700">
-                          <div className="h-full w-[72%] bg-linear-to-r from-yellow-600 to-yellow-400"></div>
-                        </div>
-                      </div>
-                      <div>
-                        <div className="mb-1 flex justify-between text-xs">
-                          <span className="text-gray-400">
-                            50.25(a)(4) - Alternatives
-                          </span>
-                          <span className="text-red-400">0%</span>
-                        </div>
-                        <div className="h-2 overflow-hidden rounded-full bg-gray-700">
-                          <div className="h-full w-0 bg-linear-to-r from-red-600 to-red-400"></div>
-                        </div>
-                      </div>
-                      <div>
-                        <div className="mb-1 flex justify-between text-xs">
-                          <span className="text-gray-400">
-                            50.25(a)(5) - Confidentiality
-                          </span>
-                          <span className="text-green-400">96%</span>
-                        </div>
-                        <div className="h-2 overflow-hidden rounded-full bg-gray-700">
-                          <div className="h-full w-[96%] bg-linear-to-r from-green-600 to-green-400"></div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+              {filteredNodes.filter(
+                (n) => n.type === "warn" || n.type === "fail",
+              ).length === 0 && (
+                <div className="flex items-center gap-2 text-sm text-gray-400">
+                  <svg
+                    className="h-5 w-5 text-green-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                  No critical issues found
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Camera Controls */}
+          <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
+            <button
+              onClick={() => {
+                const pos = graphRef.current.cameraPosition();
+                graphRef.current.cameraPosition(
+                  { x: pos.x, y: pos.y + 50, z: pos.z },
+                  undefined,
+                  500,
+                );
+              }}
+              className="glass-morphic cursor-pointer rounded-lg border border-blue-500/20 bg-blue-600/10 p-2 text-blue-400 transition-all hover:border-blue-500/40 hover:bg-blue-600/20"
+              title="Move Up"
+            >
+              <svg
+                className="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M5 15l7-7 7 7"
+                />
+              </svg>
+            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  const pos = graphRef.current.cameraPosition();
+                  graphRef.current.cameraPosition(
+                    { x: pos.x - 50, y: pos.y, z: pos.z },
+                    undefined,
+                    500,
+                  );
+                }}
+                className="glass-morphic cursor-pointer rounded-lg border border-blue-500/20 bg-blue-600/10 p-2 text-blue-400 transition-all hover:border-blue-500/40 hover:bg-blue-600/20"
+                title="Move Left"
+              >
+                <svg
+                  className="h-5 w-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15 19l-7-7 7-7"
+                  />
+                </svg>
+              </button>
+              <button
+                onClick={() => {
+                  const pos = graphRef.current.cameraPosition();
+                  graphRef.current.cameraPosition(
+                    { x: pos.x + 50, y: pos.y, z: pos.z },
+                    undefined,
+                    500,
+                  );
+                }}
+                className="glass-morphic cursor-pointer rounded-lg border border-blue-500/20 bg-blue-600/10 p-2 text-blue-400 transition-all hover:border-blue-500/40 hover:bg-blue-600/20"
+                title="Move Right"
+              >
+                <svg
+                  className="h-5 w-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 5l7 7-7 7"
+                  />
+                </svg>
+              </button>
+            </div>
+            <button
+              onClick={() => {
+                const pos = graphRef.current.cameraPosition();
+                graphRef.current.cameraPosition(
+                  { x: pos.x, y: pos.y - 50, z: pos.z },
+                  undefined,
+                  500,
+                );
+              }}
+              className="glass-morphic cursor-pointer rounded-lg border border-blue-500/20 bg-blue-600/10 p-2 text-blue-400 transition-all hover:border-blue-500/40 hover:bg-blue-600/20"
+              title="Move Down"
+            >
+              <svg
+                className="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19 9l-7 7-7-7"
+                />
+              </svg>
+            </button>
+          </div>
+
+          {/* Node Detail Modal - Bottom Right */}
+          {selectedNodeId && (
+            <div className="glass-morphic animate-in slide-in-from-right-4 absolute right-4 bottom-4 z-10 w-72 rounded-2xl border border-blue-500/20 duration-300">
+              {(() => {
+                const selectedNode = nodes.find((n) => n.id === selectedNodeId);
+                return selectedNode ? (
+                  <div className="p-5">
+                    <div className="mb-4 flex items-start justify-between">
+                      <div className="flex-1">
+                        <h3 className="mb-2 text-lg font-bold text-white">
+                          {selectedNode.title}
+                        </h3>
+                        <span
+                          className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold ${
+                            selectedNode.type === "pass"
+                              ? "bg-green-600/20 text-green-400"
+                              : selectedNode.type === "warn"
+                                ? "bg-yellow-600/20 text-yellow-400"
+                                : "bg-red-600/20 text-red-400"
+                          }`}
+                        >
+                          {selectedNode.type === "pass"
+                            ? "✓"
+                            : selectedNode.type === "warn"
+                              ? "⚠"
+                              : "✕"}
+                          {selectedNode.type.toUpperCase()}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => setSelectedNodeId(null)}
+                        className="cursor-pointer rounded-lg p-1.5 text-gray-400 transition-all hover:bg-blue-600/10 hover:text-white"
+                      >
+                        <svg
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          <line x1="18" y1="6" x2="6" y2="18"></line>
+                          <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                      </button>
+                    </div>
+
+                    <div className="mb-4 rounded-xl border border-blue-500/15 bg-blue-600/5 p-3">
+                      <p className="mb-1 text-xs font-medium text-gray-400">
+                        Requirement
+                      </p>
+                      <p className="text-sm leading-relaxed text-gray-200">
+                        {selectedNode.requirement}
+                      </p>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="rounded-lg border border-blue-500/10 bg-[#0a0f1e]/50 p-3">
+                        <p className="mb-1 text-xs font-medium text-gray-400">
+                          Citation
+                        </p>
+                        <p className="font-mono text-sm text-blue-300">
+                          {selectedNode.citation}
+                        </p>
+                      </div>
+
+                      <div className="rounded-lg border border-blue-500/10 bg-[#0a0f1e]/50 p-3">
+                        <p className="mb-1 text-xs font-medium text-gray-400">
+                          Document Location
+                        </p>
+                        <p className="text-sm text-white">
+                          {selectedNode.location}
+                        </p>
+                      </div>
+
+                      <div className="rounded-lg border border-blue-500/10 bg-[#0a0f1e]/50 p-3">
+                        <p className="mb-2 text-xs font-medium text-gray-400">
+                          AI Confidence
+                        </p>
+                        <div className="mb-1 flex items-center justify-between">
+                          <div className="h-2 flex-1 overflow-hidden rounded-full bg-gray-700">
+                            <div
+                              className="h-full rounded-full bg-linear-to-r from-blue-600 to-blue-400"
+                              style={{ width: `${selectedNode.confidence}%` }}
+                            ></div>
+                          </div>
+                          <span className="ml-2 text-sm font-bold text-white">
+                            {selectedNode.confidence}%
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="rounded-lg border border-blue-500/10 bg-[#0a0f1e]/50 p-3">
+                        <p className="mb-1 text-xs font-medium text-gray-400">
+                          Related Requirements
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <span className="text-2xl font-bold text-blue-400">
+                            {selectedNode.connections.length}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            connections
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : null;
+              })()}
+            </div>
+          )}
+
+          {/* 3D Force Graph */}
+          <div className="relative flex-1 bg-[#0a0a0f]/50">
+            <ForceGraph3D
+              ref={graphRef}
+              graphData={graphData}
+              nodeLabel={(node: any) => node.name}
+              nodeVal={(node: any) => node.val}
+              nodeColor={(node: any) => node.color}
+              onNodeClick={handleNodeClick}
+              onNodeHover={handleNodeHover}
+              linkColor={(link: any) => link.color}
+              linkWidth={(link: any) => link.width}
+              linkDirectionalParticles={0}
+              backgroundColor="rgba(10, 10, 15, 0)"
+              showNavInfo={false}
+              nodeThreeObject={(node: any) => {
+                const nodeType = node.nodeData?.type;
+                const isHovered = hoveredNode?.id === node.id;
+                const isSelected = selectedNodeId === node.id;
+
+                // Create sphere geometry
+                const geometry = new THREE.SphereGeometry(node.val, 32, 32);
+
+                // Create material with blue glow
+                const material = new THREE.MeshPhongMaterial({
+                  color: 0x3b82f6, // Always blue
+                  transparent: true,
+                  opacity: isHovered || isSelected ? 1 : 0.8,
+                  emissive: 0x3b82f6, // Blue emissive
+                  emissiveIntensity: isHovered || isSelected ? 0.6 : 0.3,
+                  shininess: 150,
+                });
+
+                const sphere = new THREE.Mesh(geometry, material);
+
+                // Add outer glow effect
+                const glowGeometry = new THREE.SphereGeometry(
+                  node.val * 1.4,
+                  32,
+                  32,
+                );
+                const glowMaterial = new THREE.MeshBasicMaterial({
+                  color: 0x3b82f6,
+                  transparent: true,
+                  opacity: isHovered || isSelected ? 0.2 : 0.1,
+                  side: THREE.BackSide,
+                });
+                const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+                sphere.add(glow);
+
+                return sphere;
+              }}
+              nodeThreeObjectExtend={true}
+              d3AlphaDecay={0.01}
+              d3VelocityDecay={0.3}
+              warmupTicks={100}
+              cooldownTicks={200}
+              numDimensions={3}
+              dagMode={undefined}
+            />
           </div>
         </div>
       </div>
