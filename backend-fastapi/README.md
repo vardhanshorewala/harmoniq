@@ -136,8 +136,8 @@ pip install fastapi uvicorn pydantic pydantic-settings python-dotenv \
 ```bash
 # Create .env file
 cat > .env << 'EOF'
-OPENROUTER_API_KEY=sk-or-v1-your-key-here
-OPENROUTER_MODEL=anthropic/claude-3.5-sonnet
+LAVA_API_KEY=your-lava-api-key-here
+ANTHROPIC_MODEL=claude-3-5-sonnet-20240620
 DEBUG=True
 EOF
 ```
@@ -284,7 +284,7 @@ backend-fastapi/
 ├── app/
 │   ├── main.py                 # FastAPI entry point
 │   ├── agents/
-│   │   ├── openrouter_agent.py # LLM agent wrapper
+│   │   ├── lava_agent.py       # LLM agent wrapper (LavaLabs)
 │   │   └── prompts/            # Agent prompts
 │   ├── api/
 │   │   └── routes/
@@ -431,7 +431,7 @@ results = sorted(ppr_scores.items(), key=lambda x: x[1], reverse=True)[:10]
 ## 🔧 Tech Stack
 
 - **FastAPI** - API framework
-- **OpenRouter** - LLM API (Claude 3.5 Sonnet)
+- **LavaLabs** - LLM API (Anthropic Claude 3.5 Sonnet)
 - **ChromaDB** - Vector database
 - **NetworkX** - Graph operations + PageRank
 - **sentence-transformers** - Local embeddings

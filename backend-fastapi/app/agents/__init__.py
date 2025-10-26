@@ -1,6 +1,6 @@
 """AI Agents package"""
 
-from app.agents.openrouter_agent import OpenRouterAgent
+from app.agents.lava_agent import LavaAgent
 
-__all__ = ["OpenRouterAgent"]
+__all__ = ["LavaAgent"]
 

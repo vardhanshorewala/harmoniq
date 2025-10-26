@@ -116,7 +116,7 @@ sequenceDiagram
     participant VectorDB as ChromaDB
     participant Graph as Knowledge Graph
     participant Agent as Compliance Agent
-    participant LLM as OpenRouter (Claude/GPT)
+    participant LLM as LavaLabs (Anthropic Claude)
     
     User->>API: POST /check-compliance<br/>{protocol_text, country}
     
@@ -241,7 +241,7 @@ POST /api/regulations/check-compliance
 | **Vector Database** | ChromaDB | Embedding storage + similarity search |
 | **Knowledge Graph** | NetworkX (persistent) | Regulation relationships + PageRank |
 | **Embeddings** | sentence-transformers | Semantic text representation |
-| **LLM Agent** | OpenRouter (Claude/GPT) | Semantic extraction + compliance analysis |
+| **LLM Agent** | LavaLabs (Anthropic Claude) | Semantic extraction + compliance analysis |
 | **PDF Parsing** | pypdf | Regulation text extraction |
 | **Graph Algorithm** | Personalized PageRank | HippoRAG-style retrieval |
 
@@ -286,15 +286,15 @@ poetry install
 
 # Set up environment variables
 cp .env.example .env
-# Add your OpenRouter API key
+# Add your LavaLabs API key
 ```
 
 ### Configuration
 Edit `.env`:
 ```bash
-OPENROUTER_API_KEY=sk-or-...
-OPENROUTER_MODEL=anthropic/claude-3.5-sonnet
-OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+LAVA_API_KEY=your-lava-api-key-here
+ANTHROPIC_MODEL=claude-3-5-sonnet-20240620
+ANTHROPIC_VERSION=2023-06-01
 ```
 
 ### Run Server

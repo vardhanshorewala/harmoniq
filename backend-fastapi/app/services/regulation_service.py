@@ -9,7 +9,7 @@ from typing import Dict, List, Optional
 from pypdf import PdfReader
 from sentence_transformers import SentenceTransformer
 
-from app.agents import OpenRouterAgent
+from app.agents import LavaAgent
 from app.agents.compliance_agent import ComplianceAgent
 from app.chroma import get_chroma_client
 from app.graph.graph_builder import RegulationGraphBuilder
@@ -23,11 +23,28 @@ from app.models.regulation import (
 class RegulationService:
     """Service for processing MESSY, UNSTRUCTURED regulations and building knowledge graphs"""
     
-    def __init__(self):
-        """Initialize regulation service"""
-        self.agent = OpenRouterAgent()
+    def __init__(self, country: str = "USA"):
+        """
+        Initialize regulation service
+        
+        Args:
+            country: Country code (USA, JAPAN, EU, etc.) - determines storage paths
+        """
+        self.country = country.lower()
+        self.agent = LavaAgent()
         self.compliance_agent = ComplianceAgent()
-        self.chroma_client = get_chroma_client()
+        
+        # Set up country-specific paths
+        self.data_dir = Path(f"./data/{self.country}")
+        self.graph_dir = self.data_dir / "graphs"
+        self.chroma_dir = self.data_dir / "chroma"
+        
+        # Create directories
+        self.graph_dir.mkdir(parents=True, exist_ok=True)
+        self.chroma_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Initialize ChromaDB with country-specific directory
+        self.chroma_client = get_chroma_client(persist_directory=str(self.chroma_dir))
         self.graph_builder = RegulationGraphBuilder()
         
         # Initialize embedding model (local, no API needed)
@@ -35,20 +52,22 @@ class RegulationService:
         self.embedder = SentenceTransformer('all-MiniLM-L6-v2')
         print("Embedding model loaded")
         
-        # Load existing graph if available
-        graph_path = Path("./data/usa/graphs/FDA-2024.json")
-        if graph_path.exists():
+        # Load existing graph if available (try to find any graph in the country directory)
+        existing_graphs = list(self.graph_dir.glob("*.json"))
+        if existing_graphs:
+            # Load the first graph found (you can modify this logic)
+            graph_path = existing_graphs[0]
             print(f"Loading existing graph from {graph_path}...")
             self.graph_builder.load(str(graph_path))
             stats = self.graph_builder.get_stats()
             print(f"Graph loaded: {stats['num_nodes']} nodes, {stats['num_edges']} edges")
         else:
-            print("No existing graph found, starting with empty graph")
+            print(f"No existing graph found for {country}, starting with empty graph")
         
         # Get or create ChromaDB collection for regulations
         self.collection = self.chroma_client.get_or_create_collection(
             name="regulations",
-            metadata={"description": "Regulation clauses and requirements"}
+            metadata={"description": "Regulation clauses and requirements", "country": country}
         )
     
     def _extract_and_clean_json(self, response_text: str) -> Optional[List]:
@@ -258,7 +277,7 @@ class RegulationService:
         text: str,
         country: str,
         authority: str,
-        batch_size: int = 50
+        batch_size: int = 10  # 15 concurrent requests per batch (balanced for rate limits)
     ) -> List[RegulationClause]:
         """
         Use agent to parse MESSY regulation text into semantic requirement chunks
@@ -289,7 +308,7 @@ class RegulationService:
                 
                 print(f"  Processing batch {batch_start//batch_size + 1} (chunks {batch_start+1}-{batch_end})...")
                 
-                # Process entire batch concurrently using asyncio.gather
+                # Process batch concurrently (10 at a time)
                 tasks = [
                     self._parse_chunk(chunk, country, authority, batch_start + i)
                     for i, chunk in enumerate(batch)
@@ -301,6 +320,12 @@ class RegulationService:
                     all_clauses.extend(chunk_clauses)
                 
                 print(f"    → Extracted {sum(len(r) for r in batch_results)} requirements from batch")
+                
+                # Wait 2 seconds between batches to avoid rate limiting
+                if batch_start + batch_size < len(chunks):  # Don't wait after last batch
+                    wait_time = 4.0  # 2 seconds between batches
+                    print(f"    Waiting {wait_time}s before next batch...")
+                    await asyncio.sleep(wait_time)
             
             print(f"  ✓ Total requirements extracted: {len(all_clauses)}")
             return all_clauses
@@ -404,7 +429,6 @@ class RegulationService:
             List of RegulationTriplet objects
         """
         print(f"  Processing {len(clauses)} clauses in batches of {batch_size}")
-        print(f"  Running {concurrent_batches} batches concurrently for speed...")
         
         # Split clauses into batches
         batches = []
@@ -414,23 +438,21 @@ class RegulationService:
         
         all_triplets = []
         
-        # Process batches concurrently in groups
-        for group_start in range(0, len(batches), concurrent_batches):
-            group_end = min(group_start + concurrent_batches, len(batches))
-            batch_group = batches[group_start:group_end]
+        # Process batches sequentially with delays
+        for i, batch in enumerate(batches):
+            print(f"  Processing relationship batch {i+1}/{len(batches)}...")
             
-            print(f"  Processing batch group {group_start//concurrent_batches + 1}/{(len(batches)-1)//concurrent_batches + 1}...")
-            
-            # Process this group of batches concurrently
-            tasks = [
-                self._extract_triplets_for_batch(batch, group_start + i)
-                for i, batch in enumerate(batch_group)
-            ]
-            group_results = await asyncio.gather(*tasks)
-            
-            # Combine results
-            for batch_triplets in group_results:
+            try:
+                batch_triplets = await self._extract_triplets_for_batch(batch, i)
                 all_triplets.extend(batch_triplets)
+            except Exception as e:
+                print(f"  ⚠️  Error extracting triplets for batch {i}: {str(e)}")
+            
+            # Wait 2 seconds between batches
+            if i < len(batches) - 1:
+                wait_time = 2.0  # 2 seconds between batches
+                print(f"    Waiting {wait_time}s before next batch...")
+                await asyncio.sleep(wait_time)
         
         print(f"  ✓ Extracted {len(all_triplets)} relationships")
         return all_triplets
@@ -585,8 +607,8 @@ class RegulationService:
         
         # Step 8: Save graph persistently
         print("Step 7: Saving graph...")
-        graph_path = f"./data/usa/graphs/{authority}-{version}.json"
-        self.graph_builder.save(graph_path)
+        graph_path = self.graph_dir / f"{authority}-{version}.json"
+        self.graph_builder.save(str(graph_path))
         print(f"Graph saved to {graph_path}")
         
         print(f"\n=== {authority} Regulation Ingestion Complete ===\n")

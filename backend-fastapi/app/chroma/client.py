@@ -80,13 +80,14 @@ class ChromaClient:
         self.client.reset()
 
 
-# Singleton instance
-_chroma_client: Optional[ChromaClient] = None
+# Cache of client instances per directory
+_chroma_clients: dict[str, ChromaClient] = {}
 
 
 def get_chroma_client(persist_directory: str = "./data/usa/chroma") -> ChromaClient:
     """
-    Get singleton ChromaDB client instance
+    Get ChromaDB client instance for a specific directory
+    Caches clients per directory to avoid recreating them
 
     Args:
         persist_directory: Directory path for persistent storage
@@ -94,8 +95,8 @@ def get_chroma_client(persist_directory: str = "./data/usa/chroma") -> ChromaCli
     Returns:
         ChromaClient instance
     """
-    global _chroma_client
-    if _chroma_client is None:
-        _chroma_client = ChromaClient(persist_directory=persist_directory)
-    return _chroma_client
+    global _chroma_clients
+    if persist_directory not in _chroma_clients:
+        _chroma_clients[persist_directory] = ChromaClient(persist_directory=persist_directory)
+    return _chroma_clients[persist_directory]
 
