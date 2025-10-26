@@ -58,6 +58,7 @@ export default function DashboardPage() {
   const [nodes, setNodes] = useState<NodeData[]>([]);
   const [edges, setEdges] = useState<EdgeData[]>([]);
   const [isLoadingGraph, setIsLoadingGraph] = useState(true);
+  const [isDetailsPanelExpanded, setIsDetailsPanelExpanded] = useState(false);
 
   // Load PDF from sessionStorage
   useEffect(() => {
@@ -80,9 +81,17 @@ export default function DashboardPage() {
         
         const data = await response.json();
         
-        // Use all nodes from the graph
-        setNodes(data.nodes);
-        setEdges(data.edges);
+        // Cap at 250 nodes for performance
+        const cappedNodes = data.nodes.slice(0, 250);
+        const nodeIds = new Set(cappedNodes.map((n: NodeData) => n.id));
+        
+        // Filter edges to only include edges between the capped nodes
+        const cappedEdges = data.edges.filter(
+          (e: EdgeData) => nodeIds.has(e.source) && nodeIds.has(e.target)
+        );
+        
+        setNodes(cappedNodes);
+        setEdges(cappedEdges);
       } catch (error) {
         console.error("Error fetching graph data:", error);
         // Keep empty arrays on error
@@ -293,8 +302,8 @@ export default function DashboardPage() {
     const newGraphLinks: GraphLink[] = edges.map((edge) => ({
       source: edge.source,
       target: edge.target,
-      color: "rgba(59, 130, 246, 0.15)",
-      width: 1.5,
+              color: "rgba(59, 130, 246, 0.15)",
+              width: 1.5,
     }));
 
     setGraphData({ nodes: newGraphNodes, links: newGraphLinks });
@@ -309,7 +318,7 @@ export default function DashboardPage() {
     (node: any) => {
       if (!node || !node.id) return;
       try {
-        setSelectedNodeId(selectedNodeId === node.id ? null : node.id);
+      setSelectedNodeId(selectedNodeId === node.id ? null : node.id);
       } catch (error) {
         console.error("Error handling node click:", error);
       }
@@ -321,7 +330,7 @@ export default function DashboardPage() {
   const handleNodeHover = useCallback((node: any) => {
     if (!node) return;
     try {
-      setHoveredNode(node);
+    setHoveredNode(node);
     } catch (error) {
       console.error("Error handling node hover:", error);
     }
@@ -443,61 +452,171 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Right Half - Graph with Compliance Filters */}
+        {/* Right Half - Graph with Details Panel */}
         <div className="relative flex w-1/2 flex-col">
-          {/* High Severity Nodes Strip - Horizontal Scrollable */}
-          <div className="border-b border-blue-500/10 p-3">
-            <div className="scrollbar-hide flex gap-3 overflow-x-auto pb-1">
+          {/* Details Panel - Expandable */}
+          <div
+            className={`absolute left-0 right-0 top-0 z-20 ${
+              isDetailsPanelExpanded
+                ? "h-full"
+                : "h-auto"
+            } border-b border-blue-500/10 bg-[#0a0a0f]/95 backdrop-blur-xl overflow-hidden`}
+            style={{
+              transition: "height 450ms cubic-bezier(0.25, 0.46, 0.45, 0.94)",
+              background: isDetailsPanelExpanded 
+                ? "linear-gradient(135deg, rgba(10, 10, 15, 0.98) 0%, rgba(15, 23, 42, 0.98) 100%)"
+                : "rgba(10, 10, 15, 0.95)",
+            }}
+          >
+            <div className="h-full flex flex-col">
+              {/* Header with Toggle */}
+              <div className="flex items-center justify-between p-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500/20 to-purple-500/20 backdrop-blur-xl">
+                    <svg
+                      className="h-5 w-5 text-blue-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                  </div>
+                  <div className="overflow-hidden">
+                    <h3 className="text-sm font-semibold text-white transition-all duration-300">
+                      {isDetailsPanelExpanded ? "Regulation Details" : "Key Regulations"}
+                    </h3>
+                    <p className="text-xs text-gray-400 transition-all duration-300">
+                      {stats.total} nodes • {stats.highSeverity} high severity
+                    </p>
+                  </div>
+                </div>
+                
+                <button
+                  onClick={() => setIsDetailsPanelExpanded(!isDetailsPanelExpanded)}
+                  className="group flex items-center gap-2 rounded-xl bg-blue-500/10 px-4 py-2 text-sm font-medium text-blue-400 transition-all duration-300 hover:bg-blue-500/20 hover:text-blue-300 hover:scale-105"
+                >
+                  <span className="transition-all duration-200">{isDetailsPanelExpanded ? "Collapse" : "Expand"}</span>
+                  <svg
+                    className={`h-4 w-4 transition-transform duration-[450ms] ease-[cubic-bezier(0.25,0.46,0.45,0.94)] ${
+                      isDetailsPanelExpanded ? "rotate-180" : "rotate-0"
+                    }`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 9l-7 7-7-7"
+                    />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Content */}
+              <div
+                className={`flex-1 ${
+                  isDetailsPanelExpanded
+                    ? "overflow-y-auto p-4 pt-0"
+                    : "overflow-x-auto px-4 pb-4"
+                } scrollbar-hide`}
+                style={{
+                  transition: "opacity 300ms cubic-bezier(0.25, 0.46, 0.45, 0.94), padding 450ms cubic-bezier(0.25, 0.46, 0.45, 0.94)",
+                }}
+              >
+                <div 
+                  className={`${isDetailsPanelExpanded ? "grid gap-4 grid-cols-1 md:grid-cols-2" : "flex gap-3"}`}
+                >
               {isLoadingGraph ? (
                 <div className="text-sm text-gray-400">Loading graph data...</div>
               ) : nodes.filter((n) => n.severity === "high" || n.severity === "critical").length > 0 ? (
                 nodes
                   .filter((n) => n.severity === "high" || n.severity === "critical")
-                  .slice(0, 10)
+                  .slice(0, isDetailsPanelExpanded ? undefined : 10)
                   .map((node) => (
                     <div
                       key={node.id}
                       onClick={() => {
                         setSelectedNodeId(node.id);
-                        // Scroll to the node in the graph
-                        const targetNode = graphData.nodes.find(
-                          (n: any) => n.id === node.id,
-                        );
-                        if (targetNode && graphRef.current) {
-                          graphRef.current.cameraPosition(
-                            {
-                              x: targetNode.x ?? 0,
-                              y: targetNode.y ?? 0,
-                              z: (targetNode.z ?? 0) + 200,
-                            },
-                            targetNode,
-                            1000,
+                        if (!isDetailsPanelExpanded) {
+                          // Scroll to the node in the graph
+                          const targetNode = graphData.nodes.find(
+                            (n: any) => n.id === node.id,
                           );
+                          if (targetNode && graphRef.current) {
+                            graphRef.current.cameraPosition(
+                              {
+                                x: targetNode.x ?? 0,
+                                y: targetNode.y ?? 0,
+                                z: (targetNode.z ?? 0) + 200,
+                              },
+                              targetNode,
+                              1000,
+                            );
+                          }
                         }
                       }}
-                      className="glass-morphic group hover:blue-glow shrink-0 cursor-pointer rounded-xl border border-blue-500/15 p-3 transition-all duration-300 hover:border-blue-500/40 hover:bg-blue-600/10"
-                      style={{ minWidth: "240px" }}
+                      className={`glass-morphic group hover:blue-glow cursor-pointer rounded-2xl border border-blue-500/15 p-4 transition-all duration-300 hover:border-blue-500/40 hover:bg-blue-600/10 hover:shadow-lg hover:shadow-blue-500/20 ${
+                        isDetailsPanelExpanded ? "" : "shrink-0"
+                      }`}
+                      style={!isDetailsPanelExpanded ? { minWidth: "240px" } : {}}
                     >
-                      <div className="mb-2 flex items-center gap-2">
-                        <div
-                          className={`flex h-6 w-6 items-center justify-center rounded-lg ${
+                      <div className="mb-3 flex items-start justify-between">
+                        <div className="flex items-center gap-2">
+                          <div
+                            className={`flex h-8 w-8 items-center justify-center rounded-xl text-sm font-bold ${
+                              node.severity === "critical"
+                                ? "bg-gradient-to-br from-red-500/20 to-red-600/30 text-red-400"
+                                : "bg-gradient-to-br from-yellow-500/20 to-yellow-600/30 text-yellow-400"
+                            }`}
+                          >
+                            {node.severity === "critical" ? "✕" : "⚠"}
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="text-sm font-bold text-white">
+                              {node.section || node.clause_number}
+                            </h4>
+                            <p className="text-xs text-gray-500">
+                              {node.requirement_type || "N/A"}
+                            </p>
+                          </div>
+                        </div>
+                        <span
+                          className={`rounded-lg px-2 py-1 text-xs font-semibold ${
                             node.severity === "critical"
-                              ? "bg-red-600/20 text-red-400"
-                              : "bg-yellow-600/20 text-yellow-400"
+                              ? "bg-red-500/20 text-red-400"
+                              : "bg-yellow-500/20 text-yellow-400"
                           }`}
                         >
-                          {node.severity === "critical" ? "✕" : "⚠"}
-                        </div>
-                        <h4 className="text-sm font-semibold text-white">
-                          {node.section || node.clause_number}
-                        </h4>
+                          {node.severity}
+                        </span>
                       </div>
-                      <p className="mb-2 text-xs text-gray-400">
-                        Type: {node.requirement_type || "N/A"}
+                      <p
+                        className={`text-xs leading-relaxed text-gray-400 ${
+                          isDetailsPanelExpanded ? "line-clamp-3" : ""
+                        }`}
+                      >
+                        {isDetailsPanelExpanded
+                          ? node.text.substring(0, 200) + (node.text.length > 200 ? "..." : "")
+                          : node.text.substring(0, 60) + "..."}
                       </p>
-                      <p className="text-xs text-gray-500">
-                        {node.text.substring(0, 60)}...
-                      </p>
+                      {isDetailsPanelExpanded && (
+                        <div className="mt-3 flex items-center justify-between border-t border-blue-500/10 pt-3">
+                          <div className="text-xs text-gray-500">
+                            Node ID: <span className="font-mono text-blue-400">{node.id.split('-').pop()}</span>
+                          </div>
+                          <button className="text-xs font-medium text-blue-400 hover:text-blue-300">
+                            View Details →
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ))
               ) : (
@@ -518,12 +637,14 @@ export default function DashboardPage() {
                   Graph loaded: {stats.total} nodes
                 </div>
               )}
+                </div>
+              </div>
             </div>
           </div>
 
           {/* Node Detail Modal - Bottom Right */}
-          {selectedNodeId && (
-            <div className="glass-morphic animate-in slide-in-from-right-4 absolute right-4 bottom-4 z-10 w-80 rounded-2xl border border-blue-500/20 duration-300 max-h-[80vh] overflow-y-auto">
+          {selectedNodeId && !isDetailsPanelExpanded && (
+            <div className="glass-morphic animate-in slide-in-from-right-4 absolute right-4 bottom-4 z-30 w-80 rounded-2xl border border-blue-500/20 duration-300 max-h-[80vh] overflow-y-auto">
               {(() => {
                 const selectedNode = nodes.find((n) => n.id === selectedNodeId);
                 const nodeEdges = edges.filter(
@@ -598,14 +719,14 @@ export default function DashboardPage() {
                       </div>
 
                       {selectedNode.clause_number && (
-                        <div className="rounded-lg border border-blue-500/10 bg-[#0a0f1e]/50 p-3">
+                      <div className="rounded-lg border border-blue-500/10 bg-[#0a0f1e]/50 p-3">
                           <p className="mb-1 text-xs font-medium text-gray-400">
                             Clause Number
                           </p>
                           <p className="text-sm text-white">
                             {selectedNode.clause_number}
                           </p>
-                        </div>
+                          </div>
                       )}
 
                       {selectedNode.requirement_type && (
@@ -644,6 +765,15 @@ export default function DashboardPage() {
             ref={graphContainerRef}
             className="relative flex-1 overflow-hidden bg-[#0a0a0f]/50"
           >
+            {/* Dimming overlay when panel is expanded */}
+            <div 
+              className={`absolute inset-0 z-10 bg-[#0a0a0f] ${
+                isDetailsPanelExpanded ? "opacity-100" : "opacity-0 pointer-events-none"
+              }`}
+              style={{
+                transition: "opacity 450ms cubic-bezier(0.25, 0.46, 0.45, 0.94)",
+              }}
+            />
             {isLoadingGraph ? (
               <div className="flex h-full items-center justify-center">
                 <div className="text-center">
@@ -674,7 +804,7 @@ export default function DashboardPage() {
                 </div>
               </div>
             ) : (
-              <ForceGraph3D
+            <ForceGraph3D
               key={`graph-${graphData.nodes.length}`}
               ref={graphRef}
               graphData={graphData}
@@ -699,48 +829,48 @@ export default function DashboardPage() {
                     return new THREE.Mesh(defaultGeometry, defaultMaterial);
                   }
 
-                  const isHovered = hoveredNode?.id === node.id;
-                  const isSelected = selectedNodeId === node.id;
+                const isHovered = hoveredNode?.id === node.id;
+                const isSelected = selectedNodeId === node.id;
 
                   // Create sphere geometry with safe values
                   const nodeSize = Math.max(5, Math.min(node.val || 10, 50)); // Clamp between 5 and 50
                   const geometry = new THREE.SphereGeometry(nodeSize, 32, 32);
 
-                  // Create material with blue glow
-                  const material = new THREE.MeshPhongMaterial({
-                    color: 0x3b82f6, // Always blue
-                    transparent: true,
-                    opacity: isHovered || isSelected ? 1 : 0.8,
-                    emissive: 0x3b82f6, // Blue emissive
-                    emissiveIntensity: isHovered || isSelected ? 0.6 : 0.3,
-                    shininess: 150,
-                  });
+                // Create material with blue glow
+                const material = new THREE.MeshPhongMaterial({
+                  color: 0x3b82f6, // Always blue
+                  transparent: true,
+                  opacity: isHovered || isSelected ? 1 : 0.8,
+                  emissive: 0x3b82f6, // Blue emissive
+                  emissiveIntensity: isHovered || isSelected ? 0.6 : 0.3,
+                  shininess: 150,
+                });
 
-                  const sphere = new THREE.Mesh(geometry, material);
+                const sphere = new THREE.Mesh(geometry, material);
                   
                   // Ensure sphere has proper matrix
                   sphere.matrixAutoUpdate = true;
                   sphere.updateMatrix();
 
-                  // Add outer glow effect
-                  const glowGeometry = new THREE.SphereGeometry(
+                // Add outer glow effect
+                const glowGeometry = new THREE.SphereGeometry(
                     nodeSize * 1.4,
-                    32,
-                    32,
-                  );
-                  const glowMaterial = new THREE.MeshBasicMaterial({
-                    color: 0x3b82f6,
-                    transparent: true,
-                    opacity: isHovered || isSelected ? 0.2 : 0.1,
-                    side: THREE.BackSide,
-                  });
-                  const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+                  32,
+                  32,
+                );
+                const glowMaterial = new THREE.MeshBasicMaterial({
+                  color: 0x3b82f6,
+                  transparent: true,
+                  opacity: isHovered || isSelected ? 0.2 : 0.1,
+                  side: THREE.BackSide,
+                });
+                const glow = new THREE.Mesh(glowGeometry, glowMaterial);
                   glow.matrixAutoUpdate = true;
                   glow.updateMatrix();
                   
-                  sphere.add(glow);
+                sphere.add(glow);
 
-                  return sphere;
+                return sphere;
                 } catch (error) {
                   console.error("Error creating node object:", error);
                   // Return a minimal fallback sphere
