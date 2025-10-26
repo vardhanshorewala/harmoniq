@@ -7,9 +7,23 @@
     "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
 }
 
+/* Hide scrollbars globally while keeping scroll functionality */
+* {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+*::-webkit-scrollbar {
+  display: none;
+}
+
 /* Custom Glassmorphic Styles */
 body {
   background: #0a0a0f;
+  overflow-x: hidden;
+}
+
+html {
   overflow-x: hidden;
 }
 
@@ -80,8 +94,8 @@ body {
   display: none;
 }
 
-/* Custom Scrollbar */
-::-webkit-scrollbar {
+/* Custom Scrollbar - Disabled (scrollbars are hidden globally) */
+/* ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
@@ -97,7 +111,7 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(59, 130, 246, 0.7);
-}
+} */
 
 /* Smooth transitions */
 * {

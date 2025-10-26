@@ -51,6 +51,16 @@ interface GraphLink {
   width: number;
 }
 
+// Helper function to convert text to Title Case (Camel Case)
+const toTitleCase = (str: string | undefined): string => {
+  if (!str) return "";
+  return str
+    .toLowerCase()
+    .split(" ")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+};
+
 export default function DashboardPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [markdownContent, setMarkdownContent] = useState<string>("");
@@ -291,6 +301,38 @@ export default function DashboardPage() {
     }
   };
 
+  const handleApplyChanges = () => {
+    if (proposedChanges.length === 0) return;
+
+    let updatedMarkdown = markdownContent;
+
+    // Apply changes in order
+    proposedChanges.forEach((change) => {
+      if (change.type === "replace" && change.original && change.replacement) {
+        // Replace the original text with the replacement
+        updatedMarkdown = updatedMarkdown.replace(
+          change.original,
+          change.replacement,
+        );
+      } else if (change.type === "delete" && change.text) {
+        // Remove the text
+        updatedMarkdown = updatedMarkdown.replace(change.text, "");
+      } else if (change.type === "add" && change.content) {
+        // For add operations, append at the end or insert based on context
+        // This is a simple implementation - you might want to improve this based on your needs
+        updatedMarkdown += "\n\n" + change.content;
+      }
+    });
+
+    // Update the markdown content
+    setMarkdownContent(updatedMarkdown);
+    sessionStorage.setItem("originalMarkdown", updatedMarkdown);
+
+    // Clear the proposed changes and hide the diff panel
+    setProposedChanges([]);
+    setShowDiffs(false);
+  };
+
   // Track container dimensions for proper graph centering
   useEffect(() => {
     const updateDimensions = () => {
@@ -452,7 +494,7 @@ export default function DashboardPage() {
 
       return {
         id: node.id,
-        name: node.section || node.clause_number || node.id,
+        name: toTitleCase(node.section || node.clause_number) || node.id,
         val: nodeSize,
         color: color,
         nodeData: node,
@@ -631,25 +673,46 @@ export default function DashboardPage() {
                           {proposedChanges.length !== 1 ? "s" : ""} suggested
                         </p>
                       </div>
-                      <button
-                        onClick={() => setShowDiffs(false)}
-                        className="group flex cursor-pointer items-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm font-medium text-red-400 transition-all duration-300 hover:border-red-500/50 hover:bg-red-500/20"
-                      >
-                        <svg
-                          className="h-4 w-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={handleApplyChanges}
+                          className="group flex cursor-pointer items-center gap-2 rounded-xl border border-green-500/30 bg-green-500/10 px-4 py-2 text-sm font-medium text-green-400 transition-all duration-300 hover:border-green-500/50 hover:bg-green-500/20"
                         >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M6 18L18 6M6 6l12 12"
-                          />
-                        </svg>
-                        Dismiss
-                      </button>
+                          <svg
+                            className="h-4 w-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M5 13l4 4L19 7"
+                            />
+                          </svg>
+                          Apply
+                        </button>
+                        <button
+                          onClick={() => setShowDiffs(false)}
+                          className="group flex cursor-pointer items-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm font-medium text-red-400 transition-all duration-300 hover:border-red-500/50 hover:bg-red-500/20"
+                        >
+                          <svg
+                            className="h-4 w-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M6 18L18 6M6 6l12 12"
+                            />
+                          </svg>
+                          Dismiss
+                        </button>
+                      </div>
                     </div>
                     <div className="space-y-3 p-5">
                       {proposedChanges.map((change, idx) => (
@@ -1137,7 +1200,9 @@ export default function DashboardPage() {
                             <div className="mb-3 flex items-start justify-between">
                               <div className="flex-1">
                                 <h4 className="text-sm font-bold text-white">
-                                  {node.section || node.clause_number}
+                                  {toTitleCase(
+                                    node.section || node.clause_number,
+                                  )}
                                 </h4>
                                 <p
                                   className={`text-xs font-semibold ${(() => {
@@ -1278,9 +1343,11 @@ export default function DashboardPage() {
                     <div className="mb-3 flex items-start justify-between">
                       <div className="flex-1">
                         <h3 className="mb-1.5 text-base font-bold text-white">
-                          {selectedNode.section ||
-                            selectedNode.clause_number ||
-                            "Regulation Node"}
+                          {toTitleCase(
+                            selectedNode.section ||
+                              selectedNode.clause_number ||
+                              "Regulation Node",
+                          )}
                         </h3>
                       </div>
                       <div className="flex items-center gap-2">
