@@ -40,13 +40,21 @@ class ViolationFixAgent:
         prompt = f"""
         You are a compliance fixer. Generate MINIMAL, TARGETED changes to fix violations.
 
+        ⚠️ IMPORTANT: THIS TEXT CHUNK HAS {len(violations)} VIOLATIONS TO FIX ⚠️
+        - Address ALL {len(violations)} violations in your response
+        - Each violation may require separate changes
+        - Generate multiple changes if needed to fix all violations
+        - Prioritize critical violations first
+        - Make sure ALL violations are addressed
+
         ORIGINAL TEXT:
         {original_text}
 
-        VIOLATIONS TO FIX:
+        VIOLATIONS TO FIX ({len(violations)} total):
         {violations_text}
 
-        Generate ONLY the specific changes needed. Return as JSON array:
+        Generate ONLY the specific changes needed to fix ALL {len(violations)} violations above.
+        Return as JSON array with changes for EACH violation:
         [
           {{
             "type": "replace",
@@ -73,18 +81,30 @@ class ViolationFixAgent:
         3. Keep changes small and targeted
         4. "original" must be exact match from the text (10-50 words)
         5. Include enough context so text is unique
-        6. Maximum 1-2 changes per violation
+        6. Generate 1-2 changes per violation (if there are 3 violations, expect ~3-6 changes)
         7. Prefer "replace" over "add"+"delete"
+        8. **MUST address ALL {len(violations)} violations** - do not skip any
+        9. Label each change with which violation it addresses
         
-        Example:
+        Example (for 2 violations):
         [
           {{
             "type": "replace",
             "original": "Protocol changes do not require FDA notification",
             "replacement": "Protocol changes require FDA notification within 30 days",
-            "reason": "FDA requires notification of protocol changes per 21 CFR 312.30"
+            "reason": "VIOLATION 1: FDA requires notification of protocol changes per 21 CFR 312.30",
+            "addresses_violation": 1
+          }},
+          {{
+            "type": "add",
+            "after": "Adverse events will be monitored",
+            "content": " and reported to the IRB within 24 hours of becoming aware",
+            "reason": "VIOLATION 2: Missing required AE reporting timeline per 21 CFR 56.108",
+            "addresses_violation": 2
           }}
         ]
+        
+        ⚠️ CRITICAL: If there are {len(violations)} violations, generate changes to address ALL {len(violations)} violations! ⚠️
         """
         
         try:

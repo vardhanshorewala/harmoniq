@@ -40,6 +40,12 @@ class ComplianceAgent:
         prompt = f"""
         You are a LENIENT clinical trial compliance expert. Your job is to identify SERIOUS, CLEAR violations - not minor omissions or technicalities.
 
+        ⚠️ IMPORTANT: A SINGLE PROTOCOL PARAGRAPH CAN VIOLATE MULTIPLE REGULATIONS ⚠️
+        - Check EVERY regulation independently
+        - Report ALL violations found (not just the first one)
+        - Each protocol chunk may have 0, 1, or MULTIPLE violations
+        - Do NOT stop after finding one violation - continue checking all regulations
+
         PROTOCOL PARAGRAPH TO CHECK:
         {protocol_paragraph}
 
@@ -52,7 +58,9 @@ class ComplianceAgent:
         3. If non-compliant, what is the probability of non-compliance (0.0 to 1.0)?
         4. Provide a brief explanation
 
-        Return as JSON array:
+        ⚠️ CHECK ALL REGULATIONS - ONE PARAGRAPH CAN VIOLATE MULTIPLE REQUIREMENTS ⚠️
+
+        Return as JSON array with ONE entry per regulation:
         [
         {{
             "regulation_id": "FDA-CHUNK0-REQ-001",

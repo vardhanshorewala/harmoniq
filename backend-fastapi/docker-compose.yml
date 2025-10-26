@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: harmoniq-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - LAVA_API_KEY=${LAVA_API_KEY}
+      - HOST=0.0.0.0
+      - PORT=8000
+    volumes:
+      # Mount data directory for persistence
+      - ./data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/regulations/test"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - harmoniq-network
+
+  # Optional: Add frontend service
+  # frontend:
+  #   build:
+  #     context: ../harmoniq-frontend
+  #     dockerfile: Dockerfile
+  #   container_name: harmoniq-frontend
+  #   ports:
+  #     - "3000:3000"
+  #   environment:
+  #     - NEXT_PUBLIC_API_URL=http://backend:8000/api
+  #   depends_on:
+  #     - backend
+  #   restart: unless-stopped
+  #   networks:
+  #     - harmoniq-network
+
+networks:
+  harmoniq-network:
+    driver: bridge
+

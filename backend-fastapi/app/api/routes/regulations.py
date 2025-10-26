@@ -16,16 +16,37 @@ from app.agents.violation_fix_agent import ViolationFixAgent
 
 router = APIRouter()
 
-# Initialize service (singleton pattern)
-_regulation_service = None
+# Initialize services per country (one instance per country)
+_regulation_services = {}
 
 
-def get_regulation_service():
-    """Get or create regulation service instance"""
-    global _regulation_service
-    if _regulation_service is None:
-        _regulation_service = RegulationService()
-    return _regulation_service
+def get_regulation_service(country: str = "USA"):
+    """
+    Get or create regulation service instance for specific country
+    
+    Args:
+        country: Country code (USA, EU, Japan)
+        
+    Returns:
+        RegulationService instance for the country
+    """
+    global _regulation_services
+    country_normalized = country.upper()
+    
+    # Map country names to directory names
+    country_map = {
+        "USA": "usa",
+        "EU": "eu", 
+        "JAPAN": "japan"
+    }
+    
+    # Get directory name
+    country_dir = country_map.get(country_normalized, country.lower())
+    
+    if country_dir not in _regulation_services:
+        _regulation_services[country_dir] = RegulationService(country=country_dir)
+    
+    return _regulation_services[country_dir]
 
 
 def pdf_to_markdown(pdf_path: str) -> str:
@@ -167,7 +188,7 @@ async def upload_regulation(
         f.write(content)
     
     # Process regulation
-    service = get_regulation_service()
+    service = get_regulation_service(country=country)
     try:
         reg_doc = await service.ingest_regulation(
             pdf_path=temp_path,
@@ -204,7 +225,7 @@ async def retrieve_regulations(query: RetrievalQuery):
     Returns:
         Retrieval results with PPR scores
     """
-    service = get_regulation_service()
+    service = get_regulation_service(country=query.country)
     
     results = service.retrieve_with_hipporag(
         query_text=query.query_text,
@@ -225,21 +246,29 @@ async def retrieve_regulations(query: RetrievalQuery):
 
 
 @router.get("/graph/stats")
-async def get_graph_stats():
-    """Get current knowledge graph statistics"""
-    service = get_regulation_service()
+async def get_graph_stats(country: str = "USA"):
+    """
+    Get current knowledge graph statistics
+    
+    Args:
+        country: Country code (USA, EU, Japan)
+    """
+    service = get_regulation_service(country=country)
     return service.graph_builder.get_stats()
 
 
 @router.get("/graph/data")
-async def get_graph_data():
+async def get_graph_data(country: str = "USA"):
     """
     Get complete knowledge graph data for visualization
     
+    Args:
+        country: Country code (USA, EU, Japan)
+        
     Returns:
         Graph data with nodes and edges in a format suitable for visualization
     """
-    service = get_regulation_service()
+    service = get_regulation_service(country=country)
     graph = service.graph_builder.graph
     
     # Extract nodes
@@ -304,7 +333,7 @@ async def check_protocol_compliance(request: ComplianceCheckRequest):
         }
         ```
     """
-    service = get_regulation_service()
+    service = get_regulation_service(country=request.country)
     
     try:
         result = await service.check_protocol_compliance(
@@ -367,7 +396,7 @@ async def check_pdf_compliance(
             f.write(content)
         
         # Get service and extract PDF text
-        service = get_regulation_service()
+        service = get_regulation_service(country=country)
         pdf_text = service.extract_text_from_pdf(temp_path)
         
         if not pdf_text.strip():
@@ -472,6 +501,7 @@ async def check_pdf_compliance(
 async def fix_pdf_violations(
     file: UploadFile = File(...),
     compliance_results: str = Form(...),
+    country: str = Form("USA"),
 ):
     """
     Generate targeted diffs to fix compliance violations
@@ -485,6 +515,7 @@ async def fix_pdf_violations(
     Args:
         file: Original PDF file
         compliance_results: JSON string of compliance check results
+        country: Country code (USA, EU, Japan)
         
     Returns:
         JSON with list of diffs and metadata
@@ -515,7 +546,7 @@ async def fix_pdf_violations(
             f.write(content)
         
         # Get service and extract PDF text
-        service = get_regulation_service()
+        service = get_regulation_service(country=country)
         pdf_text = service.extract_text_from_pdf(temp_path)
         
         # Initialize fix agent
