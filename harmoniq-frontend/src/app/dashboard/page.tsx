@@ -15,14 +15,20 @@ const ForceGraph3D = dynamic(() => import("react-force-graph-3d"), {
 
 interface NodeData {
   id: string;
-  title: string;
-  type: "pass" | "warn" | "fail";
-  requirement: string;
-  citation: string;
-  location: string;
+  type: string;
+  text: string;
+  section: string;
+  clause_number: string;
+  requirement_type: string;
+  severity: string;
+}
+
+interface EdgeData {
+  source: string;
+  target: string;
+  relation: string;
   confidence: number;
-  size: "small" | "medium" | "large";
-  connections: string[];
+  source_type: string;
 }
 
 interface GraphNode {
@@ -46,11 +52,12 @@ interface GraphLink {
 export default function DashboardPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const [complianceFilter, setComplianceFilter] = useState<
-    "all" | "pass" | "warn" | "fail"
-  >("all");
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string>("");
+
+  const [nodes, setNodes] = useState<NodeData[]>([]);
+  const [edges, setEdges] = useState<EdgeData[]>([]);
+  const [isLoadingGraph, setIsLoadingGraph] = useState(true);
 
   // Load PDF from sessionStorage
   useEffect(() => {
@@ -59,231 +66,35 @@ export default function DashboardPage() {
     if (storedUrl) setPdfUrl(storedUrl);
     if (storedName) setFileName(storedName);
   }, []);
-  const [nodes] = useState<NodeData[]>([
-    {
-      id: "req-1",
-      title: "Study Purpose",
-      type: "pass",
-      requirement: "Informed consent must include study purpose and duration",
-      citation: "21 CFR 50.25(a)(1)",
-      location: "Section 2.1, Page 3",
-      confidence: 98,
-      size: "large",
-      connections: ["req-2", "req-6", "req-8"],
-    },
-    {
-      id: "req-2",
-      title: "Risk Disclosure",
-      type: "warn",
-      requirement: "Description of reasonably foreseeable risks or discomforts",
-      citation: "21 CFR 50.25(a)(2)",
-      location: "Section 4.2, Page 7",
-      confidence: 72,
-      size: "medium",
-      connections: ["req-1", "req-3", "req-7"],
-    },
-    {
-      id: "req-3",
-      title: "Alternatives",
-      type: "fail",
-      requirement:
-        "Alternative procedures or courses of treatment must be disclosed",
-      citation: "21 CFR 50.25(a)(4)",
-      location: "Missing",
-      confidence: 95,
-      size: "large",
-      connections: ["req-2", "req-4"],
-    },
-    {
-      id: "req-4",
-      title: "Confidentiality",
-      type: "pass",
-      requirement: "Confidentiality statement and limits clearly defined",
-      citation: "21 CFR 50.25(a)(5)",
-      location: "Section 8.1, Page 12",
-      confidence: 96,
-      size: "medium",
-      connections: ["req-3", "req-5", "req-9"],
-    },
-    {
-      id: "req-5",
-      title: "Contact Info",
-      type: "warn",
-      requirement:
-        "Contact information for questions about research and rights",
-      citation: "21 CFR 50.25(a)(7)",
-      location: "Section 9.3, Page 14",
-      confidence: 68,
-      size: "small",
-      connections: ["req-4", "req-6"],
-    },
-    {
-      id: "req-6",
-      title: "Voluntary Participation",
-      type: "pass",
-      requirement: "Statement that participation is voluntary",
-      citation: "21 CFR 50.25(a)(8)",
-      location: "Section 1.2, Page 2",
-      confidence: 99,
-      size: "large",
-      connections: ["req-1", "req-5", "req-10"],
-    },
-    {
-      id: "req-7",
-      title: "Benefits",
-      type: "pass",
-      requirement: "Description of anticipated benefits to the subject",
-      citation: "21 CFR 50.25(a)(3)",
-      location: "Section 3.1, Page 5",
-      confidence: 88,
-      size: "medium",
-      connections: ["req-2", "req-8"],
-    },
-    {
-      id: "req-8",
-      title: "Compensation",
-      type: "warn",
-      requirement:
-        "Disclosure of compensation and medical treatments available",
-      citation: "21 CFR 50.25(a)(6)",
-      location: "Section 7.4, Page 10",
-      confidence: 75,
-      size: "small",
-      connections: ["req-1", "req-7", "req-9"],
-    },
-    {
-      id: "req-9",
-      title: "Right to Withdraw",
-      type: "pass",
-      requirement: "Statement about right to withdraw without penalty",
-      citation: "21 CFR 50.25(a)(8)",
-      location: "Section 1.5, Page 2",
-      confidence: 94,
-      size: "medium",
-      connections: ["req-4", "req-8", "req-10"],
-    },
-    {
-      id: "req-10",
-      title: "IRB Approval",
-      type: "pass",
-      requirement: "Statement that protocol has been reviewed by IRB",
-      citation: "21 CFR 56.109(e)",
-      location: "Section 10.1, Page 15",
-      confidence: 97,
-      size: "medium",
-      connections: ["req-6", "req-9"],
-    },
-    {
-      id: "req-11",
-      title: "Data Handling",
-      type: "warn",
-      requirement: "Description of how data will be collected and stored",
-      citation: "ICH-GCP E6 4.8.10",
-      location: "Section 8.3, Page 12",
-      confidence: 70,
-      size: "small",
-      connections: ["req-4", "req-12"],
-    },
-    {
-      id: "req-12",
-      title: "Subject Responsibilities",
-      type: "pass",
-      requirement: "Clear statement of subject's responsibilities",
-      citation: "ICH-GCP E6 4.8.5",
-      location: "Section 5.2, Page 8",
-      confidence: 91,
-      size: "small",
-      connections: ["req-11", "req-13"],
-    },
-    {
-      id: "req-13",
-      title: "Study Duration",
-      type: "pass",
-      requirement: "Expected duration of subject's participation",
-      citation: "21 CFR 50.25(a)(1)",
-      location: "Section 2.3, Page 4",
-      confidence: 99,
-      size: "small",
-      connections: ["req-12", "req-1"],
-    },
-    {
-      id: "req-14",
-      title: "Costs to Subject",
-      type: "fail",
-      requirement: "Disclosure of costs subject may incur",
-      citation: "21 CFR 50.25(b)(3)",
-      location: "Missing",
-      confidence: 88,
-      size: "medium",
-      connections: ["req-8", "req-15"],
-    },
-    {
-      id: "req-15",
-      title: "Injury Compensation",
-      type: "warn",
-      requirement: "Explanation of compensation for injury",
-      citation: "21 CFR 50.25(a)(6)",
-      location: "Section 7.1, Page 9",
-      confidence: 65,
-      size: "small",
-      connections: ["req-14", "req-16"],
-    },
-    {
-      id: "req-16",
-      title: "Study Procedures",
-      type: "pass",
-      requirement: "Description of procedures to be followed",
-      citation: "21 CFR 50.25(a)(1)",
-      location: "Section 3.5, Page 6",
-      confidence: 93,
-      size: "medium",
-      connections: ["req-15", "req-7"],
-    },
-    {
-      id: "req-17",
-      title: "Privacy Protection",
-      type: "pass",
-      requirement: "Statement about confidentiality of records",
-      citation: "45 CFR 164.508",
-      location: "Section 8.2, Page 11",
-      confidence: 95,
-      size: "small",
-      connections: ["req-4", "req-11"],
-    },
-    {
-      id: "req-18",
-      title: "Unforeseeable Risks",
-      type: "warn",
-      requirement: "Statement about unforeseeable risks",
-      citation: "21 CFR 50.25(b)(1)",
-      location: "Section 4.5, Page 7",
-      confidence: 60,
-      size: "small",
-      connections: ["req-2", "req-15"],
-    },
-    {
-      id: "req-19",
-      title: "Protocol Deviations",
-      type: "fail",
-      requirement: "Explanation of consequences of protocol deviations",
-      citation: "ICH-GCP E6 4.8.9",
-      location: "Missing",
-      confidence: 92,
-      size: "medium",
-      connections: ["req-12", "req-9"],
-    },
-    {
-      id: "req-20",
-      title: "New Findings",
-      type: "pass",
-      requirement: "Statement about new findings disclosure",
-      citation: "21 CFR 50.25(b)(5)",
-      location: "Section 6.2, Page 9",
-      confidence: 89,
-      size: "small",
-      connections: ["req-2", "req-18"],
-    },
-  ]);
+
+  // Fetch graph data from backend
+  useEffect(() => {
+    const fetchGraphData = async () => {
+      try {
+        setIsLoadingGraph(true);
+        const response = await fetch("http://localhost:8000/api/regulations/graph/data");
+        
+        if (!response.ok) {
+          throw new Error("Failed to fetch graph data");
+        }
+        
+        const data = await response.json();
+        
+        // Use all nodes from the graph
+        setNodes(data.nodes);
+        setEdges(data.edges);
+      } catch (error) {
+        console.error("Error fetching graph data:", error);
+        // Keep empty arrays on error
+        setNodes([]);
+        setEdges([]);
+      } finally {
+        setIsLoadingGraph(false);
+      }
+    };
+
+    fetchGraphData();
+  }, []);
   const [graphData, setGraphData] = useState<{
     nodes: GraphNode[];
     links: GraphLink[];
@@ -340,10 +151,17 @@ export default function DashboardPage() {
   // Configure force simulation after mount for 3D and center on main node
   useEffect(() => {
     if (
-      graphRef.current &&
-      graphData.nodes.length > 0 &&
-      graphDimensions.width > 0
+      !graphRef.current ||
+      graphData.nodes.length === 0 ||
+      graphDimensions.width === 0
     ) {
+      return;
+    }
+
+    // Wait for next tick to ensure graph is mounted
+    const timer = setTimeout(() => {
+      if (!graphRef.current) return;
+
       // Configure 3D forces with closer nodes
       graphRef.current.d3Force("charge", d3.forceManyBody().strength(-300)); // Reduced repulsion
       graphRef.current.d3Force(
@@ -434,66 +252,53 @@ export default function DashboardPage() {
           return () => clearInterval(saveInterval);
         }
       }, 500);
-    }
+    });
+
+    return () => clearTimeout(timer);
   }, [graphData, graphDimensions]);
 
   // Generate graph data for react-force-graph
   const generateGraphData = useCallback(() => {
-    const filteredNodes =
-      complianceFilter === "all"
-        ? nodes
-        : nodes.filter((n) => n.type === complianceFilter);
+    if (nodes.length === 0) {
+      setGraphData({ nodes: [], links: [] });
+      return;
+    }
 
-    const newGraphNodes: GraphNode[] = filteredNodes.map((node) => {
-      const sizeMap = { small: 8, medium: 12, large: 16 };
-      const nodeSize = sizeMap[node.size];
+    const newGraphNodes: GraphNode[] = nodes.map((node) => {
+      // Determine node size based on severity
+      const sizeMap: Record<string, number> = {
+        high: 16,
+        critical: 18,
+        medium: 12,
+        low: 8,
+      };
+      const nodeSize = sizeMap[node.severity] || 10;
 
-      // Use blue for all nodes with varying intensity
-      let color;
-      if (node.type === "pass") {
+      // Color nodes based on type (all blue variants)
+      let color = "rgba(59, 130, 246, 0.9)"; // Default blue
+      if (node.type === "clause") {
         color = "rgba(59, 130, 246, 0.9)"; // Bright blue
-      } else if (node.type === "warn") {
-        color = "rgba(96, 165, 250, 0.8)"; // Light blue
-      } else {
-        color = "rgba(37, 99, 235, 0.85)"; // Deep blue
       }
 
       return {
         id: node.id,
-        name: node.title,
+        name: node.section || node.clause_number || node.id,
         val: nodeSize,
         color: color,
         nodeData: node,
       };
     });
 
-    // Generate links based on node connections
-    const newGraphLinks: GraphLink[] = [];
-    const nodeIds = new Set(filteredNodes.map((n) => n.id));
-
-    filteredNodes.forEach((node) => {
-      node.connections.forEach((connectedNodeId) => {
-        if (nodeIds.has(connectedNodeId)) {
-          const linkExists = newGraphLinks.some(
-            (link) =>
-              (link.source === node.id && link.target === connectedNodeId) ||
-              (link.source === connectedNodeId && link.target === node.id),
-          );
-
-          if (!linkExists) {
-            newGraphLinks.push({
-              source: node.id,
-              target: connectedNodeId,
-              color: "rgba(59, 130, 246, 0.15)",
-              width: 1.5,
-            });
-          }
-        }
-      });
-    });
+    // Generate links from edges
+    const newGraphLinks: GraphLink[] = edges.map((edge) => ({
+      source: edge.source,
+      target: edge.target,
+      color: "rgba(59, 130, 246, 0.15)",
+      width: 1.5,
+    }));
 
     setGraphData({ nodes: newGraphNodes, links: newGraphLinks });
-  }, [nodes, complianceFilter]);
+  }, [nodes, edges]);
 
   useEffect(() => {
     generateGraphData();
@@ -502,28 +307,33 @@ export default function DashboardPage() {
   // Handle node click in graph
   const handleNodeClick = useCallback(
     (node: any) => {
-      setSelectedNodeId(selectedNodeId === node.id ? null : node.id);
+      if (!node || !node.id) return;
+      try {
+        setSelectedNodeId(selectedNodeId === node.id ? null : node.id);
+      } catch (error) {
+        console.error("Error handling node click:", error);
+      }
     },
     [selectedNodeId],
   );
 
   // Handle node hover
   const handleNodeHover = useCallback((node: any) => {
-    setHoveredNode(node);
+    if (!node) return;
+    try {
+      setHoveredNode(node);
+    } catch (error) {
+      console.error("Error handling node hover:", error);
+    }
   }, []);
 
   const profileRef = useRef<HTMLDivElement>(null);
 
-  const filteredNodes =
-    complianceFilter === "all"
-      ? nodes
-      : nodes.filter((n) => n.type === complianceFilter);
-
   const stats = {
     total: nodes.length,
-    pass: nodes.filter((n) => n.type === "pass").length,
-    warn: nodes.filter((n) => n.type === "warn").length,
-    fail: nodes.filter((n) => n.type === "fail").length,
+    highSeverity: nodes.filter((n) => n.severity === "high").length,
+    mediumSeverity: nodes.filter((n) => n.severity === "medium").length,
+    lowSeverity: nodes.filter((n) => n.severity === "low").length,
   };
 
   return (
@@ -635,62 +445,65 @@ export default function DashboardPage() {
 
         {/* Right Half - Graph with Compliance Filters */}
         <div className="relative flex w-1/2 flex-col">
-          {/* Error Cards Strip - Horizontal Scrollable */}
+          {/* High Severity Nodes Strip - Horizontal Scrollable */}
           <div className="border-b border-blue-500/10 p-3">
             <div className="scrollbar-hide flex gap-3 overflow-x-auto pb-1">
-              {filteredNodes
-                .filter((n) => n.type === "warn" || n.type === "fail")
-                .map((node) => (
-                  <div
-                    key={node.id}
-                    onClick={() => {
-                      setSelectedNodeId(node.id);
-                      // Scroll to the node in the graph
-                      const targetNode = graphData.nodes.find(
-                        (n: any) => n.id === node.id,
-                      );
-                      if (targetNode && graphRef.current) {
-                        graphRef.current.cameraPosition(
-                          {
-                            x: targetNode.x ?? 0,
-                            y: targetNode.y ?? 0,
-                            z: (targetNode.z ?? 0) + 200,
-                          },
-                          targetNode,
-                          1000,
+              {isLoadingGraph ? (
+                <div className="text-sm text-gray-400">Loading graph data...</div>
+              ) : nodes.filter((n) => n.severity === "high" || n.severity === "critical").length > 0 ? (
+                nodes
+                  .filter((n) => n.severity === "high" || n.severity === "critical")
+                  .slice(0, 10)
+                  .map((node) => (
+                    <div
+                      key={node.id}
+                      onClick={() => {
+                        setSelectedNodeId(node.id);
+                        // Scroll to the node in the graph
+                        const targetNode = graphData.nodes.find(
+                          (n: any) => n.id === node.id,
                         );
-                      }
-                    }}
-                    className="glass-morphic group hover:blue-glow shrink-0 cursor-pointer rounded-xl border border-blue-500/15 p-3 transition-all duration-300 hover:border-blue-500/40 hover:bg-blue-600/10"
-                    style={{ minWidth: "240px" }}
-                  >
-                    <div className="mb-2 flex items-center gap-2">
-                      <div
-                        className={`flex h-6 w-6 items-center justify-center rounded-lg ${
-                          node.type === "warn"
-                            ? "bg-yellow-600/20 text-yellow-400"
-                            : "bg-red-600/20 text-red-400"
-                        }`}
-                      >
-                        {node.type === "warn" ? "⚠" : "✕"}
+                        if (targetNode && graphRef.current) {
+                          graphRef.current.cameraPosition(
+                            {
+                              x: targetNode.x ?? 0,
+                              y: targetNode.y ?? 0,
+                              z: (targetNode.z ?? 0) + 200,
+                            },
+                            targetNode,
+                            1000,
+                          );
+                        }
+                      }}
+                      className="glass-morphic group hover:blue-glow shrink-0 cursor-pointer rounded-xl border border-blue-500/15 p-3 transition-all duration-300 hover:border-blue-500/40 hover:bg-blue-600/10"
+                      style={{ minWidth: "240px" }}
+                    >
+                      <div className="mb-2 flex items-center gap-2">
+                        <div
+                          className={`flex h-6 w-6 items-center justify-center rounded-lg ${
+                            node.severity === "critical"
+                              ? "bg-red-600/20 text-red-400"
+                              : "bg-yellow-600/20 text-yellow-400"
+                          }`}
+                        >
+                          {node.severity === "critical" ? "✕" : "⚠"}
+                        </div>
+                        <h4 className="text-sm font-semibold text-white">
+                          {node.section || node.clause_number}
+                        </h4>
                       </div>
-                      <h4 className="text-sm font-semibold text-white">
-                        {node.title}
-                      </h4>
+                      <p className="mb-2 text-xs text-gray-400">
+                        Type: {node.requirement_type || "N/A"}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {node.text.substring(0, 60)}...
+                      </p>
                     </div>
-                    <p className="mb-2 text-xs text-gray-400">
-                      {node.citation}
-                    </p>
-                    <p className="text-xs text-gray-500">{node.location}</p>
-                  </div>
-                ))}
-
-              {filteredNodes.filter(
-                (n) => n.type === "warn" || n.type === "fail",
-              ).length === 0 && (
+                  ))
+              ) : (
                 <div className="flex items-center gap-2 text-sm text-gray-400">
                   <svg
-                    className="h-5 w-5 text-green-400"
+                    className="h-5 w-5 text-blue-400"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -699,10 +512,10 @@ export default function DashboardPage() {
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       strokeWidth={2}
-                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                      d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                     />
                   </svg>
-                  No critical issues found
+                  Graph loaded: {stats.total} nodes
                 </div>
               )}
             </div>
@@ -710,31 +523,32 @@ export default function DashboardPage() {
 
           {/* Node Detail Modal - Bottom Right */}
           {selectedNodeId && (
-            <div className="glass-morphic animate-in slide-in-from-right-4 absolute right-4 bottom-4 z-10 w-72 rounded-2xl border border-blue-500/20 duration-300">
+            <div className="glass-morphic animate-in slide-in-from-right-4 absolute right-4 bottom-4 z-10 w-80 rounded-2xl border border-blue-500/20 duration-300 max-h-[80vh] overflow-y-auto">
               {(() => {
                 const selectedNode = nodes.find((n) => n.id === selectedNodeId);
+                const nodeEdges = edges.filter(
+                  (e) => e.source === selectedNodeId || e.target === selectedNodeId
+                );
+                
                 return selectedNode ? (
                   <div className="p-5">
                     <div className="mb-4 flex items-start justify-between">
                       <div className="flex-1">
                         <h3 className="mb-2 text-lg font-bold text-white">
-                          {selectedNode.title}
+                          {selectedNode.section || selectedNode.clause_number || "Regulation Node"}
                         </h3>
                         <span
                           className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold ${
-                            selectedNode.type === "pass"
-                              ? "bg-green-600/20 text-green-400"
-                              : selectedNode.type === "warn"
+                            selectedNode.severity === "critical"
+                              ? "bg-red-600/20 text-red-400"
+                              : selectedNode.severity === "high"
                                 ? "bg-yellow-600/20 text-yellow-400"
-                                : "bg-red-600/20 text-red-400"
+                                : selectedNode.severity === "medium"
+                                  ? "bg-blue-600/20 text-blue-400"
+                                  : "bg-gray-600/20 text-gray-400"
                           }`}
                         >
-                          {selectedNode.type === "pass"
-                            ? "✓"
-                            : selectedNode.type === "warn"
-                              ? "⚠"
-                              : "✕"}
-                          {selectedNode.type.toUpperCase()}
+                          {selectedNode.severity?.toUpperCase() || "N/A"}
                         </span>
                       </div>
                       <button
@@ -757,59 +571,64 @@ export default function DashboardPage() {
 
                     <div className="mb-4 rounded-xl border border-blue-500/15 bg-blue-600/5 p-3">
                       <p className="mb-1 text-xs font-medium text-gray-400">
-                        Requirement
+                        Regulation Text
                       </p>
                       <p className="text-sm leading-relaxed text-gray-200">
-                        {selectedNode.requirement}
+                        {selectedNode.text || "No text available"}
                       </p>
                     </div>
 
                     <div className="space-y-3">
                       <div className="rounded-lg border border-blue-500/10 bg-[#0a0f1e]/50 p-3">
                         <p className="mb-1 text-xs font-medium text-gray-400">
-                          Citation
+                          Node ID
                         </p>
-                        <p className="font-mono text-sm text-blue-300">
-                          {selectedNode.citation}
+                        <p className="font-mono text-xs text-blue-300 break-all">
+                          {selectedNode.id}
                         </p>
                       </div>
 
                       <div className="rounded-lg border border-blue-500/10 bg-[#0a0f1e]/50 p-3">
                         <p className="mb-1 text-xs font-medium text-gray-400">
-                          Document Location
+                          Type
                         </p>
                         <p className="text-sm text-white">
-                          {selectedNode.location}
+                          {selectedNode.type || "N/A"}
                         </p>
                       </div>
 
-                      <div className="rounded-lg border border-blue-500/10 bg-[#0a0f1e]/50 p-3">
-                        <p className="mb-2 text-xs font-medium text-gray-400">
-                          AI Confidence
-                        </p>
-                        <div className="mb-1 flex items-center justify-between">
-                          <div className="h-2 flex-1 overflow-hidden rounded-full bg-gray-700">
-                            <div
-                              className="h-full rounded-full bg-linear-to-r from-blue-600 to-blue-400"
-                              style={{ width: `${selectedNode.confidence}%` }}
-                            ></div>
-                          </div>
-                          <span className="ml-2 text-sm font-bold text-white">
-                            {selectedNode.confidence}%
-                          </span>
+                      {selectedNode.clause_number && (
+                        <div className="rounded-lg border border-blue-500/10 bg-[#0a0f1e]/50 p-3">
+                          <p className="mb-1 text-xs font-medium text-gray-400">
+                            Clause Number
+                          </p>
+                          <p className="text-sm text-white">
+                            {selectedNode.clause_number}
+                          </p>
                         </div>
-                      </div>
+                      )}
+
+                      {selectedNode.requirement_type && (
+                        <div className="rounded-lg border border-blue-500/10 bg-[#0a0f1e]/50 p-3">
+                          <p className="mb-1 text-xs font-medium text-gray-400">
+                            Requirement Type
+                          </p>
+                          <p className="text-sm text-white">
+                            {selectedNode.requirement_type}
+                          </p>
+                        </div>
+                      )}
 
                       <div className="rounded-lg border border-blue-500/10 bg-[#0a0f1e]/50 p-3">
                         <p className="mb-1 text-xs font-medium text-gray-400">
-                          Related Requirements
+                          Connections
                         </p>
                         <div className="flex items-center gap-2">
                           <span className="text-2xl font-bold text-blue-400">
-                            {selectedNode.connections.length}
+                            {nodeEdges.length}
                           </span>
                           <span className="text-xs text-gray-500">
-                            connections
+                            edges in graph
                           </span>
                         </div>
                       </div>
@@ -825,7 +644,38 @@ export default function DashboardPage() {
             ref={graphContainerRef}
             className="relative flex-1 overflow-hidden bg-[#0a0a0f]/50"
           >
-            <ForceGraph3D
+            {isLoadingGraph ? (
+              <div className="flex h-full items-center justify-center">
+                <div className="text-center">
+                  <div className="mb-4 inline-block h-12 w-12 animate-spin rounded-full border-4 border-blue-500/20 border-t-blue-500"></div>
+                  <p className="text-sm text-gray-400">Loading graph data...</p>
+                </div>
+              </div>
+            ) : graphData.nodes.length === 0 ? (
+              <div className="flex h-full items-center justify-center">
+                <div className="text-center">
+                  <svg
+                    className="mx-auto mb-4 h-16 w-16 text-gray-500"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1.5}
+                      d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"
+                    />
+                  </svg>
+                  <p className="text-sm text-gray-400">No graph data available</p>
+                  <p className="mt-2 text-xs text-gray-500">
+                    Upload regulations to generate the knowledge graph
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <ForceGraph3D
+              key={`graph-${graphData.nodes.length}`}
               ref={graphRef}
               graphData={graphData}
               width={graphDimensions.width}
@@ -841,41 +691,65 @@ export default function DashboardPage() {
               backgroundColor="rgba(10, 10, 15, 0)"
               showNavInfo={false}
               nodeThreeObject={(node: any) => {
-                const nodeType = node.nodeData?.type;
-                const isHovered = hoveredNode?.id === node.id;
-                const isSelected = selectedNodeId === node.id;
+                try {
+                  if (!node || !node.val) {
+                    // Return a simple default sphere if node data is invalid
+                    const defaultGeometry = new THREE.SphereGeometry(5, 16, 16);
+                    const defaultMaterial = new THREE.MeshBasicMaterial({ color: 0x3b82f6 });
+                    return new THREE.Mesh(defaultGeometry, defaultMaterial);
+                  }
 
-                // Create sphere geometry
-                const geometry = new THREE.SphereGeometry(node.val, 32, 32);
+                  const isHovered = hoveredNode?.id === node.id;
+                  const isSelected = selectedNodeId === node.id;
 
-                // Create material with blue glow
-                const material = new THREE.MeshPhongMaterial({
-                  color: 0x3b82f6, // Always blue
-                  transparent: true,
-                  opacity: isHovered || isSelected ? 1 : 0.8,
-                  emissive: 0x3b82f6, // Blue emissive
-                  emissiveIntensity: isHovered || isSelected ? 0.6 : 0.3,
-                  shininess: 150,
-                });
+                  // Create sphere geometry with safe values
+                  const nodeSize = Math.max(5, Math.min(node.val || 10, 50)); // Clamp between 5 and 50
+                  const geometry = new THREE.SphereGeometry(nodeSize, 32, 32);
 
-                const sphere = new THREE.Mesh(geometry, material);
+                  // Create material with blue glow
+                  const material = new THREE.MeshPhongMaterial({
+                    color: 0x3b82f6, // Always blue
+                    transparent: true,
+                    opacity: isHovered || isSelected ? 1 : 0.8,
+                    emissive: 0x3b82f6, // Blue emissive
+                    emissiveIntensity: isHovered || isSelected ? 0.6 : 0.3,
+                    shininess: 150,
+                  });
 
-                // Add outer glow effect
-                const glowGeometry = new THREE.SphereGeometry(
-                  node.val * 1.4,
-                  32,
-                  32,
-                );
-                const glowMaterial = new THREE.MeshBasicMaterial({
-                  color: 0x3b82f6,
-                  transparent: true,
-                  opacity: isHovered || isSelected ? 0.2 : 0.1,
-                  side: THREE.BackSide,
-                });
-                const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-                sphere.add(glow);
+                  const sphere = new THREE.Mesh(geometry, material);
+                  
+                  // Ensure sphere has proper matrix
+                  sphere.matrixAutoUpdate = true;
+                  sphere.updateMatrix();
 
-                return sphere;
+                  // Add outer glow effect
+                  const glowGeometry = new THREE.SphereGeometry(
+                    nodeSize * 1.4,
+                    32,
+                    32,
+                  );
+                  const glowMaterial = new THREE.MeshBasicMaterial({
+                    color: 0x3b82f6,
+                    transparent: true,
+                    opacity: isHovered || isSelected ? 0.2 : 0.1,
+                    side: THREE.BackSide,
+                  });
+                  const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+                  glow.matrixAutoUpdate = true;
+                  glow.updateMatrix();
+                  
+                  sphere.add(glow);
+
+                  return sphere;
+                } catch (error) {
+                  console.error("Error creating node object:", error);
+                  // Return a minimal fallback sphere
+                  const fallbackGeometry = new THREE.SphereGeometry(5, 16, 16);
+                  const fallbackMaterial = new THREE.MeshBasicMaterial({ color: 0x3b82f6 });
+                  const fallbackSphere = new THREE.Mesh(fallbackGeometry, fallbackMaterial);
+                  fallbackSphere.matrixAutoUpdate = true;
+                  return fallbackSphere;
+                }
               }}
               nodeThreeObjectExtend={true}
               enableNodeDrag={true}
@@ -886,6 +760,7 @@ export default function DashboardPage() {
               numDimensions={3}
               dagMode={undefined}
             />
+            )}
           </div>
         </div>
       </div>
