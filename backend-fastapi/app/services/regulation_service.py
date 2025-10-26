@@ -34,6 +34,16 @@ class RegulationService:
         self.embedder = SentenceTransformer('all-MiniLM-L6-v2')
         print("Embedding model loaded")
         
+        # Load existing graph if available
+        graph_path = Path("./data/graphs/FDA-2024.json")
+        if graph_path.exists():
+            print(f"Loading existing graph from {graph_path}...")
+            self.graph_builder.load(str(graph_path))
+            stats = self.graph_builder.get_stats()
+            print(f"Graph loaded: {stats['num_nodes']} nodes, {stats['num_edges']} edges")
+        else:
+            print("No existing graph found, starting with empty graph")
+        
         # Get or create ChromaDB collection for regulations
         self.collection = self.chroma_client.get_or_create_collection(
             name="regulations",
