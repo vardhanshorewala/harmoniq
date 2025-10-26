@@ -8,10 +8,8 @@ export default function HomePage() {
   const router = useRouter();
   const [isExpanded, setIsExpanded] = useState(false);
   const [showForm, setShowForm] = useState(false);
-  const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [selectedStandard, setSelectedStandard] = useState("all");
-  const profileRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleChatClick = () => {
@@ -63,10 +61,13 @@ export default function HomePage() {
       formData.append("compliance_focus", selectedStandard);
 
       // Send to backend for compliance checking
-      const response = await fetch("http://localhost:8000/api/regulations/check-pdf-compliance", {
-        method: "POST",
-        body: formData,
-      });
+      const response = await fetch(
+        "http://localhost:8000/api/regulations/check-pdf-compliance",
+        {
+          method: "POST",
+          body: formData,
+        },
+      );
 
       if (!response.ok) {
         const error = await response.json();
@@ -77,25 +78,28 @@ export default function HomePage() {
 
       // Store compliance results in sessionStorage
       sessionStorage.setItem("complianceResults", JSON.stringify(result));
-      
+
       // Convert PDF to Markdown for display
       const markdownFormData = new FormData();
       markdownFormData.append("file", uploadedFile);
-      
-      const markdownResponse = await fetch("http://localhost:8000/api/regulations/pdf-to-markdown", {
-        method: "POST",
-        body: markdownFormData,
-      });
-      
+
+      const markdownResponse = await fetch(
+        "http://localhost:8000/api/regulations/pdf-to-markdown",
+        {
+          method: "POST",
+          body: markdownFormData,
+        },
+      );
+
       if (markdownResponse.ok) {
         const markdownResult = await markdownResponse.json();
         sessionStorage.setItem("originalMarkdown", markdownResult.markdown);
       }
-      
+
       // Store file info and actual file data in sessionStorage
       sessionStorage.setItem("uploadedFileName", uploadedFile.name);
       sessionStorage.setItem("uploadedFileSize", uploadedFile.size.toString());
-      
+
       // Convert file to base64 and store for later use
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -108,35 +112,13 @@ export default function HomePage() {
       router.push("/dashboard");
     } catch (error) {
       console.error("Error analyzing PDF:", error);
-      setAnalysisError(error instanceof Error ? error.message : "Failed to analyze PDF");
+      setAnalysisError(
+        error instanceof Error ? error.message : "Failed to analyze PDF",
+      );
     } finally {
       setIsAnalyzing(false);
     }
   };
-
-  const handleProfileClick = () => {
-    setShowProfileMenu(!showProfileMenu);
-  };
-
-  // Close profile menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        profileRef.current &&
-        !profileRef.current.contains(event.target as Node)
-      ) {
-        setShowProfileMenu(false);
-      }
-    };
-
-    if (showProfileMenu) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [showProfileMenu]);
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#0a0a0f]">
@@ -162,40 +144,12 @@ export default function HomePage() {
       </div>
 
       {/* Profile - always show */}
-      <div className="fixed top-6 right-6 z-50" ref={profileRef}>
-        <button
-          onClick={handleProfileClick}
-          className="h-10 w-10 cursor-pointer overflow-hidden rounded-full border border-blue-500/15 bg-[#0a0f1e] transition-all duration-300 hover:border-blue-500/40 hover:bg-blue-600/10"
-        >
+      <div className="fixed top-6 right-6 z-50">
+        <div className="h-10 w-10 overflow-hidden rounded-full border border-blue-500/15 bg-[#0a0f1e] transition-all duration-300 hover:border-blue-500/40 hover:bg-blue-600/10">
           <div className="flex h-full w-full items-center justify-center text-sm font-bold text-blue-400">
             JP
           </div>
-        </button>
-
-        {/* Profile Dropdown Menu */}
-        {showProfileMenu && (
-          <div className="glass-morphic absolute top-14 right-0 w-56 overflow-hidden rounded-xl border border-blue-500/15">
-            <div className="bg-[#0a0f1e]/90 p-2">
-              <div className="border-b border-blue-500/10 px-4 py-3">
-                <p className="text-sm font-semibold text-white">John Paul</p>
-                <p className="text-xs text-gray-400">jp@harmoniq.ai</p>
-              </div>
-              <button className="w-full cursor-pointer rounded-lg px-4 py-2.5 text-left text-sm text-gray-300 transition-all hover:bg-blue-600/10 hover:text-white">
-                Account Settings
-              </button>
-              <button className="w-full cursor-pointer rounded-lg px-4 py-2.5 text-left text-sm text-gray-300 transition-all hover:bg-blue-600/10 hover:text-white">
-                Preferences
-              </button>
-              <button className="w-full cursor-pointer rounded-lg px-4 py-2.5 text-left text-sm text-gray-300 transition-all hover:bg-blue-600/10 hover:text-white">
-                Documentation
-              </button>
-              <div className="my-1 border-t border-blue-500/10"></div>
-              <button className="w-full cursor-pointer rounded-lg px-4 py-2.5 text-left text-sm text-red-400 transition-all hover:bg-red-600/10 hover:text-red-300">
-                Sign Out
-              </button>
-            </div>
-          </div>
-        )}
+        </div>
       </div>
 
       {/* Welcome Message - only show when not expanded */}
@@ -463,8 +417,18 @@ export default function HomePage() {
             {analysisError && (
               <div className="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 p-4">
                 <div className="flex items-center gap-2 text-red-400">
-                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <svg
+                    className="h-5 w-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
                   </svg>
                   <p className="text-sm">{analysisError}</p>
                 </div>
@@ -483,9 +447,24 @@ export default function HomePage() {
             >
               {isAnalyzing ? (
                 <span className="inline-flex items-center gap-3">
-                  <svg className="h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  <svg
+                    className="h-5 w-5 animate-spin"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    ></circle>
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path>
                   </svg>
                   Analyzing PDF...
                 </span>

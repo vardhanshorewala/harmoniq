@@ -14,7 +14,7 @@ body {
 }
 
 .glass-morphic {
-  background: rgba(10, 15, 30, 0.7);
+  background: rgba(7, 10, 22, 0.97);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(59, 130, 246, 0.1);
@@ -33,18 +33,18 @@ body {
 
 .blue-glow {
   box-shadow:
-    0 0 15px rgba(59, 130, 246, 0.3),
-    0 0 30px rgba(59, 130, 246, 0.15),
-    inset 0 0 15px rgba(59, 130, 246, 0.08);
-  border: 1px solid rgba(59, 130, 246, 0.4);
+    0 0 12px rgba(59, 130, 246, 0.2),
+    0 0 24px rgba(59, 130, 246, 0.1),
+    inset 0 0 12px rgba(59, 130, 246, 0.05);
+  border: 1px solid rgba(59, 130, 246, 0.3);
 }
 
 .blue-glow-hover:hover {
   box-shadow:
-    0 0 20px rgba(59, 130, 246, 0.4),
-    0 0 40px rgba(59, 130, 246, 0.2),
-    inset 0 0 20px rgba(59, 130, 246, 0.1);
-  border: 1px solid rgba(59, 130, 246, 0.5);
+    0 0 15px rgba(59, 130, 246, 0.25),
+    0 0 30px rgba(59, 130, 246, 0.12),
+    inset 0 0 15px rgba(59, 130, 246, 0.06);
+  border: 1px solid rgba(59, 130, 246, 0.35);
   transform: translateY(-1px);
 }
 
