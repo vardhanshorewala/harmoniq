@@ -1,23 +1,26 @@
-[project]
+[tool.poetry]
 name = "backend-fastapi"
 version = "0.1.0"
-description = ""
-authors = [
-    {name = "Vardhan Shorewala",email = "vardhanshorewala@berkeley.edu"}
-]
+description = "Clinical trial compliance checker with HippoRAG"
+authors = ["Vardhan Shorewala <vardhanshorewala@berkeley.edu>"]
 readme = "README.md"
-requires-python = ">=3.12"
-dependencies = [
-    "fastapi>=0.104.0",
-    "uvicorn[standard]>=0.24.0",
-    "pydantic>=2.4.0",
-    "pydantic-settings>=2.0.0",
-    "python-dotenv>=1.0.0",
-    "httpx>=0.25.0",
-    "chromadb>=0.4.0",
-]
+package-mode = false
 
+[tool.poetry.dependencies]
+python = ">=3.12"
+fastapi = ">=0.104.0"
+uvicorn = {extras = ["standard"], version = ">=0.24.0"}
+pydantic = ">=2.4.0"
+pydantic-settings = ">=2.0.0"
+python-dotenv = ">=1.0.0"
+httpx = ">=0.25.0"
+chromadb = ">=0.4.0"
+networkx = ">=3.2"
+pypdf = ">=3.17.0"
+sentence-transformers = ">=2.2.0"
+numpy = ">=1.24.0"
+scikit-learn = ">=1.3.0"
 
 [build-system]
-requires = ["poetry-core>=2.0.0,<3.0.0"]
+requires = ["poetry-core>=2.0.0"]
 build-backend = "poetry.core.masonry.api"
