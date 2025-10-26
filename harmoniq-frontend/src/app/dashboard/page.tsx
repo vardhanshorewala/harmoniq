@@ -33,6 +33,7 @@ interface GraphNode {
   nodeData: NodeData;
   x?: number;
   y?: number;
+  z?: number;
 }
 
 interface GraphLink {
@@ -290,10 +291,31 @@ export default function DashboardPage() {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
   const graphRef = useRef<any>(null);
+  const graphContainerRef = useRef<HTMLDivElement>(null);
+  const [graphDimensions, setGraphDimensions] = useState({
+    width: 800,
+    height: 600,
+  });
 
   const handleProfileClick = () => {
     setShowProfileMenu(!showProfileMenu);
   };
+
+  // Track container dimensions for proper graph centering
+  useEffect(() => {
+    const updateDimensions = () => {
+      if (graphContainerRef.current) {
+        setGraphDimensions({
+          width: graphContainerRef.current.offsetWidth,
+          height: graphContainerRef.current.offsetHeight,
+        });
+      }
+    };
+
+    updateDimensions();
+    window.addEventListener("resize", updateDimensions);
+    return () => window.removeEventListener("resize", updateDimensions);
+  }, []);
 
   // Close profile menu when clicking outside
   useEffect(() => {
@@ -317,7 +339,11 @@ export default function DashboardPage() {
 
   // Configure force simulation after mount for 3D and center on main node
   useEffect(() => {
-    if (graphRef.current && graphData.nodes.length > 0) {
+    if (
+      graphRef.current &&
+      graphData.nodes.length > 0 &&
+      graphDimensions.width > 0
+    ) {
       // Configure 3D forces with closer nodes
       graphRef.current.d3Force("charge", d3.forceManyBody().strength(-300)); // Reduced repulsion
       graphRef.current.d3Force(
@@ -409,7 +435,7 @@ export default function DashboardPage() {
         }
       }, 500);
     }
-  }, [graphData]);
+  }, [graphData, graphDimensions]);
 
   // Generate graph data for react-force-graph
   const generateGraphData = useCallback(() => {
@@ -626,9 +652,9 @@ export default function DashboardPage() {
                       if (targetNode && graphRef.current) {
                         graphRef.current.cameraPosition(
                           {
-                            x: targetNode.x,
-                            y: targetNode.y,
-                            z: targetNode.z + 200,
+                            x: targetNode.x ?? 0,
+                            y: targetNode.y ?? 0,
+                            z: (targetNode.z ?? 0) + 200,
                           },
                           targetNode,
                           1000,
@@ -795,10 +821,15 @@ export default function DashboardPage() {
           )}
 
           {/* 3D Force Graph */}
-          <div className="relative flex-1 overflow-hidden bg-[#0a0a0f]/50">
+          <div
+            ref={graphContainerRef}
+            className="relative flex-1 overflow-hidden bg-[#0a0a0f]/50"
+          >
             <ForceGraph3D
               ref={graphRef}
               graphData={graphData}
+              width={graphDimensions.width}
+              height={graphDimensions.height}
               nodeLabel={(node: any) => node.name}
               nodeVal={(node: any) => node.val}
               nodeColor={(node: any) => node.color}
@@ -848,7 +879,6 @@ export default function DashboardPage() {
               }}
               nodeThreeObjectExtend={true}
               enableNodeDrag={true}
-              showNavInfo={false}
               d3AlphaDecay={0.01}
               d3VelocityDecay={0.3}
               warmupTicks={100}
