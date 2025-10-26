@@ -1,0 +1,26 @@
+Parse this {authority} regulation document and extract individual requirement clauses.
+
+Text:
+{text}
+
+For each requirement clause, extract:
+- clause_number: The section/clause number (e.g., "11.10.a")
+- text: The full text of the requirement
+- section: The parent section number (e.g., "11.10")
+- requirement_type: "mandatory" if uses "must"/"shall", "recommended" if "should"/"may"
+- severity: "critical"/"high"/"medium"/"low" based on importance
+
+Return as JSON array:
+[
+  {{
+    "clause_number": "11.10.a",
+    "text": "Validation of systems...",
+    "section": "11.10",
+    "requirement_type": "mandatory",
+    "severity": "critical"
+  }},
+  ...
+]
+
+Extract all key requirements. Be thorough and accurate.
+
