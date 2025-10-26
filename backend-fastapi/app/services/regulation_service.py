@@ -354,8 +354,8 @@ class RegulationService:
         # Edge Type 2: Semantic similarity edges (from embeddings)
         self.graph_builder.add_semantic_similarity_edges(
             regulation_doc.clauses,
-            similarity_threshold=0.75,  # High similarity only
-            max_edges_per_node=5  # Keep it sparse
+            similarity_threshold=0.75,
+            max_edges_per_node=5
         )
         
         # Edge Type 3: Nearby chunk edges (connect to immediate neighbor only)
@@ -425,7 +425,7 @@ class RegulationService:
         graph_stats = self.graph_builder.get_stats()
         print(f"Graph built: {graph_stats}")
         
-        # Step 8: Save graph
+        # Step 8: Save graph persistently
         print("Step 7: Saving graph...")
         graph_path = f"./data/graphs/{authority}-{version}.json"
         self.graph_builder.save(graph_path)

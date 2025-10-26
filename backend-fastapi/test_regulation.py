@@ -99,7 +99,7 @@ async def test_regulation_processing():
         print(f"  {triplet.subject} --[{triplet.predicate}]--> {triplet.object}")
         print(f"  Confidence: {triplet.confidence}\n")
     
-    print("Step 4: Building knowledge graph...")
+    print("\nStep 4: Building knowledge graph...")
     from app.models.regulation import RegulationDocument
     reg_doc = RegulationDocument(
         id="FDA-CFR21-Part11-Test",
@@ -124,40 +124,33 @@ async def test_regulation_processing():
     
     graph = service.graph_builder.graph
     
-    # Print all nodes
-    print("\n=== ALL NODES ===")
-    for i, (node_id, node_data) in enumerate(graph.nodes(data=True), 1):
-        text = node_data.get('text', '')[:50]
+    # Print sample nodes
+    print(f"\n=== SAMPLE NODES (first 5) ===")
+    for i, (node_id, node_data) in enumerate(list(graph.nodes(data=True))[:5], 1):
+        text = node_data.get('text', '')[:60]
         section = node_data.get('section', '')
         severity = node_data.get('severity', '')
         print(f"{i}. {node_id}")
         print(f"   Topic: {section}, Severity: {severity}")
-        print(f"   Text: {text}...")
+        print(f"   Text: {text}...\n")
     
     # Print edges by type
-    print("\n=== EDGES BY TYPE ===")
-    edge_types = {}
-    for u, v, data in graph.edges(data=True):
-        relation = data.get('relation', 'unknown')
-        if relation not in edge_types:
-            edge_types[relation] = []
-        confidence = data.get('confidence', 1.0)
-        edge_types[relation].append((u, v, confidence))
-    
-    for relation, edges in sorted(edge_types.items()):
-        print(f"\n{relation} ({len(edges)} edges):")
-        for u, v, conf in edges[:8]:  # Show first 8
-            print(f"  {u} --[{conf:.2f}]--> {v}")
-        if len(edges) > 8:
-            print(f"  ... and {len(edges) - 8} more")
+    print("=== EDGE TYPE BREAKDOWN ===")
+    for relation, count in sorted(stats['edge_types'].items()):
+        print(f"  - {relation}: {count} edges")
     
     print("\n" + "="*60 + "\n")
     
-    print("Step 5: Storing in ChromaDB...")
+    print("Step 5: Saving graph to disk...")
+    graph_path = "./data/graphs/FDA-test.json"
+    service.graph_builder.save(graph_path)
+    print(f"✓ Graph saved to {graph_path}\n")
+    
+    print("Step 6: Storing in ChromaDB...")
     service.store_in_chromadb(reg_doc)
     print("✓ Stored in vector database\n")
     
-    print("Step 6: Testing HippoRAG retrieval...")
+    print("Step 7: Testing HippoRAG retrieval...")
     query = "Electronic data capture systems with validation"
     print(f"Query: '{query}'")
     results = service.retrieve_with_hipporag(
