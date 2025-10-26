@@ -1,11 +1,18 @@
 """API endpoints for regulation processing"""
 
+import os
+import math
+import json
 from typing import List
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from fastapi import APIRouter, File, Form, UploadFile, HTTPException
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+import fitz  # PyMuPDF
 
 from app.services import RegulationService
+from app.agents.violation_fix_agent import ViolationFixAgent
 
 router = APIRouter()
 
@@ -19,6 +26,33 @@ def get_regulation_service():
     if _regulation_service is None:
         _regulation_service = RegulationService()
     return _regulation_service
+
+
+def pdf_to_markdown(pdf_path: str) -> str:
+    """
+    Convert PDF to plain text preserving original formatting
+    
+    Args:
+        pdf_path: Path to PDF file
+        
+    Returns:
+        Plain text with preserved line breaks
+    """
+    doc = fitz.open(pdf_path)
+    all_text = []
+    
+    for page in doc:
+        # Get text with layout preserved
+        text = page.get_text("text")
+        if text.strip():
+            all_text.append(text)
+    
+    doc.close()
+    
+    # Join all pages
+    full_text = "\n".join(all_text)
+    
+    return full_text
 
 
 class RegulationUploadResponse(BaseModel):
@@ -71,6 +105,31 @@ class ComplianceCheckResponse(BaseModel):
     detailed_results: List[dict]
     critical_violations: List[dict]
     recommendations: List[List[str]]
+
+
+class PDFChunkResult(BaseModel):
+    """Result for a single PDF chunk compliance check"""
+    chunk_index: int
+    chunk_text: str
+    total_regulations_checked: int
+    compliant_count: int
+    non_compliant_count: int
+    compliance_score: float
+    status: str
+    violations: List[dict]
+
+
+class PDFComplianceResponse(BaseModel):
+    """Response for full PDF compliance checking"""
+    filename: str
+    total_chunks: int
+    processed_chunks: int
+    overall_compliance_score: float
+    overall_status: str
+    total_violations: int
+    critical_violations: int
+    chunk_results: List[PDFChunkResult]
+    processing_time_seconds: float
 
 
 @router.post("/upload", response_model=RegulationUploadResponse)
@@ -261,6 +320,347 @@ async def check_protocol_compliance(request: ComplianceCheckRequest):
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Compliance check failed: {str(e)}")
+
+
+@router.post("/check-pdf-compliance", response_model=PDFComplianceResponse)
+async def check_pdf_compliance(
+    file: UploadFile = File(...),
+    country: str = Form("USA"),
+    top_k: int = Form(10),
+    num_chunks: int = Form(12),
+    compliance_focus: str = Form("all"),
+):
+    """
+    Check compliance of an entire PDF document
+    
+    This endpoint:
+    1. Extracts text from uploaded PDF
+    2. Chunks the PDF into N parts (default 12)
+    3. Uses concurrent.futures to send all chunks to OpenRouter in parallel
+    4. For each chunk, retrieves relevant regulations using HippoRAG
+    5. Returns aggregated compliance results
+    
+    Args:
+        file: PDF file to check
+        country: Country code (USA, EU, Japan)
+        top_k: Number of regulations to retrieve per chunk
+        num_chunks: Number of chunks to split PDF into (10-15 recommended)
+        compliance_focus: Focus area (all, consent, data, safety)
+        
+    Returns:
+        Detailed compliance analysis for entire PDF with per-chunk breakdowns
+    """
+    import time
+    start_time = time.time()
+    
+    # Validate file type
+    if not file.filename.endswith('.pdf'):
+        raise HTTPException(status_code=400, detail="Only PDF files are supported")
+    
+    # Save uploaded file temporarily
+    temp_path = f"./data/temp/{file.filename}"
+    os.makedirs("./data/temp", exist_ok=True)
+    
+    try:
+        with open(temp_path, "wb") as f:
+            content = await file.read()
+            f.write(content)
+        
+        # Get service and extract PDF text
+        service = get_regulation_service()
+        pdf_text = service.extract_text_from_pdf(temp_path)
+        
+        if not pdf_text.strip():
+            raise HTTPException(status_code=400, detail="Could not extract text from PDF")
+        
+        # Chunk the PDF text
+        chunk_size = math.ceil(len(pdf_text) / num_chunks)
+        chunks = service._chunk_text(pdf_text, chunk_size)
+        
+        # Ensure we have the right number of chunks
+        if len(chunks) > num_chunks:
+            # Merge smaller chunks
+            target_chunk_size = math.ceil(len(pdf_text) / num_chunks)
+            chunks = service._chunk_text(pdf_text, target_chunk_size)
+        
+        print(f"PDF split into {len(chunks)} chunks")
+        
+        # Function to process a single chunk
+        async def process_chunk(chunk_index: int, chunk_text: str):
+            """Process a single chunk with compliance checking"""
+            try:
+                # Use existing check_protocol_compliance method
+                result = await service.check_protocol_compliance(
+                    protocol_paragraph=chunk_text,
+                    country=country,
+                    top_k=top_k
+                )
+                
+                return PDFChunkResult(
+                    chunk_index=chunk_index,
+                    chunk_text=chunk_text[:200] + "..." if len(chunk_text) > 200 else chunk_text,
+                    total_regulations_checked=result.get("total_regulations_checked", 0),
+                    compliant_count=result.get("compliant_count", 0),
+                    non_compliant_count=result.get("non_compliant_count", 0),
+                    compliance_score=result.get("overall_compliance_score", 0.0),
+                    status=result.get("status", "ERROR"),
+                    violations=[
+                        v for v in result.get("detailed_results", [])
+                        if not v.get("is_compliant")
+                    ]
+                )
+            except Exception as e:
+                print(f"Error processing chunk {chunk_index}: {e}")
+                return PDFChunkResult(
+                    chunk_index=chunk_index,
+                    chunk_text=chunk_text[:200] + "..." if len(chunk_text) > 200 else chunk_text,
+                    total_regulations_checked=0,
+                    compliant_count=0,
+                    non_compliant_count=0,
+                    compliance_score=0.0,
+                    status="ERROR",
+                    violations=[]
+                )
+        
+        # Process all chunks concurrently using asyncio.gather
+        import asyncio
+        tasks = [process_chunk(i, chunk) for i, chunk in enumerate(chunks)]
+        chunk_results = await asyncio.gather(*tasks)
+        
+        # Calculate overall statistics
+        total_regulations = sum(r.total_regulations_checked for r in chunk_results)
+        total_compliant = sum(r.compliant_count for r in chunk_results)
+        total_non_compliant = sum(r.non_compliant_count for r in chunk_results)
+        
+        # Overall compliance score (weighted average)
+        overall_score = 0.0
+        if total_regulations > 0:
+            overall_score = total_compliant / total_regulations
+        
+        # Count critical violations
+        critical_violations = 0
+        for result in chunk_results:
+            critical_violations += sum(
+                1 for v in result.violations
+                if v.get("severity") == "critical"
+            )
+        
+        processing_time = time.time() - start_time
+        
+        return PDFComplianceResponse(
+            filename=file.filename,
+            total_chunks=len(chunks),
+            processed_chunks=len(chunk_results),
+            overall_compliance_score=round(overall_score, 3),
+            overall_status="COMPLIANT" if total_non_compliant == 0 else "NON_COMPLIANT",
+            total_violations=total_non_compliant,
+            critical_violations=critical_violations,
+            chunk_results=chunk_results,
+            processing_time_seconds=round(processing_time, 2)
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"PDF compliance check failed: {str(e)}")
+    
+    finally:
+        # Clean up temp file
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+
+
+@router.post("/fix-pdf-violations")
+async def fix_pdf_violations(
+    file: UploadFile = File(...),
+    compliance_results: str = Form(...),
+):
+    """
+    Fix compliance violations in a PDF by rewriting problematic sections
+    
+    This endpoint:
+    1. Converts PDF to Markdown
+    2. Identifies chunks with violations
+    3. Uses AI to rewrite each violated chunk to be compliant
+    4. Returns the corrected Markdown with highlighted changes
+    
+    Args:
+        file: Original PDF file
+        compliance_results: JSON string of compliance check results
+        
+    Returns:
+        JSON with fixed markdown and metadata
+    """
+    import time
+    import json
+    import asyncio
+    
+    start_time = time.time()
+    
+    # Validate file type
+    if not file.filename.endswith('.pdf'):
+        raise HTTPException(status_code=400, detail="Only PDF files are supported")
+    
+    # Parse compliance results
+    try:
+        results = json.loads(compliance_results)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid compliance results JSON")
+    
+    # Save uploaded file temporarily
+    temp_path = f"./data/temp/{file.filename}"
+    os.makedirs("./data/temp", exist_ok=True)
+    
+    try:
+        with open(temp_path, "wb") as f:
+            content = await file.read()
+            f.write(content)
+        
+        # Get service and extract PDF text
+        service = get_regulation_service()
+        pdf_text = service.extract_text_from_pdf(temp_path)
+        
+        # Initialize fix agent
+        fix_agent = ViolationFixAgent()
+        
+        # Process chunks with violations
+        chunk_results = results.get("chunk_results", [])
+        fixed_chunks = []
+        
+        async def fix_chunk(chunk_data):
+            """Fix a single chunk if it has violations"""
+            violations = chunk_data.get("violations", [])
+            chunk_index = chunk_data.get("chunk_index")
+            
+            # Get full chunk text from original PDF
+            num_chunks = results.get("total_chunks", 12)
+            chunk_size = math.ceil(len(pdf_text) / num_chunks)
+            start_idx = chunk_index * chunk_size
+            end_idx = min(start_idx + chunk_size, len(pdf_text))
+            full_chunk_text = pdf_text[start_idx:end_idx]
+            
+            if len(violations) == 0:
+                # No violations, keep original text exactly as is
+                return {
+                    "chunk_index": chunk_index,
+                    "text": full_chunk_text,  # Use full original text
+                    "was_fixed": False
+                }
+            
+            
+            # Prepare violation details with regulation text
+            violations_with_context = []
+            for v in violations:
+                reg_id = v.get("regulation_id")
+                # Try to find the regulation text from graph
+                reg_node = next(
+                    (n for n in service.graph_builder.graph.nodes() 
+                     if n == reg_id), 
+                    None
+                )
+                reg_text = ""
+                if reg_node:
+                    reg_text = service.graph_builder.graph.nodes[reg_node].get("text", "")
+                
+                violations_with_context.append({
+                    "regulation_id": reg_id,
+                    "regulation_text": reg_text,
+                    "explanation": v.get("explanation", ""),
+                    "missing_elements": v.get("missing_elements", []),
+                })
+            
+            # Call fix agent
+            fix_result = await fix_agent.fix_violations(
+                original_text=full_chunk_text,
+                violations=violations_with_context
+            )
+            
+            return {
+                "chunk_index": chunk_index,
+                "text": fix_result.get("rewritten_text", full_chunk_text),
+                "was_fixed": True,
+                "violations_fixed": len(violations)
+            }
+        
+        # Process all chunks concurrently
+        tasks = [fix_chunk(chunk) for chunk in chunk_results]
+        fixed_chunks = await asyncio.gather(*tasks)
+        
+        # Sort by chunk index
+        fixed_chunks.sort(key=lambda x: x["chunk_index"])
+        
+        # Generate clean Markdown - reassemble chunks preserving original structure
+        markdown_parts = []
+        
+        for chunk in fixed_chunks:
+            text = chunk['text']
+            # Don't strip - preserve whitespace
+            markdown_parts.append(text)
+        
+        # Join chunks directly - they already have proper spacing from the original
+        markdown_content = ''.join(markdown_parts)
+        
+        processing_time = time.time() - start_time
+        print(f"Markdown generated in {processing_time:.2f} seconds")
+        
+        # Return markdown as JSON
+        return JSONResponse({
+            "markdown": markdown_content,
+            "original_filename": file.filename,
+            "violations_fixed": sum(c.get('violations_fixed', 0) for c in fixed_chunks),
+            "processing_time": round(processing_time, 2),
+            "chunks_fixed": sum(1 for c in fixed_chunks if c.get('was_fixed')),
+            "total_chunks": len(fixed_chunks)
+        })
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fix violations: {str(e)}")
+    
+    finally:
+        # Clean up temp file
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+
+
+@router.post("/pdf-to-markdown")
+async def convert_pdf_to_markdown(
+    file: UploadFile = File(...),
+):
+    """
+    Convert a PDF to Markdown format
+    
+    Args:
+        file: PDF file to convert
+        
+    Returns:
+        JSON with markdown content
+    """
+    # Validate file type
+    if not file.filename.endswith('.pdf'):
+        raise HTTPException(status_code=400, detail="Only PDF files are supported")
+    
+    # Save uploaded file temporarily
+    temp_path = f"./data/temp/{file.filename}"
+    os.makedirs("./data/temp", exist_ok=True)
+    
+    try:
+        with open(temp_path, "wb") as f:
+            content = await file.read()
+            f.write(content)
+        
+        # Convert to markdown
+        markdown_content = pdf_to_markdown(temp_path)
+        
+        return JSONResponse({
+            "markdown": markdown_content,
+            "filename": file.filename
+        })
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to convert PDF: {str(e)}")
+    
+    finally:
+        # Clean up temp file
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
 
 
 @router.get("/test")

@@ -83,15 +83,20 @@ class RegulationGraphBuilder:
         self,
         clauses: List[RegulationClause],
         similarity_threshold: float = 0.75,
-        max_edges_per_node: int = 5
+        max_edges_per_node: int = 5,
+        edge_weight: float = 0.1
     ):
         """
-        Add edges based on embedding similarity (vector-based)
+        Add sparse backup edges based on embedding similarity
+        
+        Used as LOW-WEIGHT backup connections when LLM edges aren't enough.
+        These get much lower weight in PPR compared to LLM edges.
         
         Args:
             clauses: List of RegulationClause objects
             similarity_threshold: Minimum cosine similarity (default: 0.75)
             max_edges_per_node: Max similar clauses to connect (default: 5)
+            edge_weight: Weight for PPR (default: 0.1 = low priority)
         """
         import numpy as np
         from sklearn.metrics.pairwise import cosine_similarity
@@ -126,7 +131,7 @@ class RegulationGraphBuilder:
                         subject=clause_id,
                         predicate="SIMILAR_TO",
                         object=clause_ids[j],
-                        confidence=float(sim_score),
+                        confidence=edge_weight,  # Use low weight instead of sim_score
                     ))
     
     def get_neighbors(self, node_id: str, relation: Optional[str] = None) -> List[str]:
@@ -171,24 +176,56 @@ class RegulationGraphBuilder:
         Returns:
             Dict mapping node IDs to PPR scores
         """
-        # Create personalization vector (uniform over seeds)
-        personalization = {node: 0.0 for node in self.graph.nodes()}
-        for seed in seed_nodes:
-            if seed in personalization:
-                personalization[seed] = 1.0 / len(seed_nodes)
+        # Validate inputs
+        if not seed_nodes:
+            print("PPR warning: No seed nodes provided")
+            return {node: 0.0 for node in self.graph.nodes()}
         
-        # Run PPR
+        if self.graph.number_of_nodes() == 0:
+            print("PPR warning: Graph is empty")
+            return {}
+        
+        # Filter out seed nodes that don't exist in graph
+        valid_seeds = [node for node in seed_nodes if self.graph.has_node(node)]
+        
+        if not valid_seeds:
+            print(f"PPR warning: None of the {len(seed_nodes)} seed nodes exist in graph")
+            # Fallback: just return uniform scores
+            return {node: 1.0 / self.graph.number_of_nodes() for node in self.graph.nodes()}
+        
+        if len(valid_seeds) < len(seed_nodes):
+            print(f"PPR warning: Only {len(valid_seeds)}/{len(seed_nodes)} seeds found in graph")
+        
+        # Create personalization vector (uniform over valid seeds)
+        personalization = {node: 0.0 for node in self.graph.nodes()}
+        for seed in valid_seeds:
+            personalization[seed] = 1.0 / len(valid_seeds)
+        
+        # Run PPR with edge weights
+        # confidence = weight (LLM edges have confidence=1.0, semantic edges have confidence=0.1)
         try:
             ppr_scores = nx.pagerank(
                 self.graph,
                 alpha=alpha,
                 personalization=personalization,
                 max_iter=max_iter,
+                tol=1e-6,
+                weight='confidence',  # Use edge confidence as weight (LLM=1.0 >> semantic=0.1)
             )
+            print(f"PPR success: Computed scores for {len(ppr_scores)} nodes from {len(valid_seeds)} seeds (using edge weights)")
             return ppr_scores
+        except nx.PowerIterationFailedConvergence as e:
+            print(f"PPR convergence failed after {max_iter} iterations, using partial results")
+            # Return the partial results from the exception
+            return e.pagerank
         except Exception as e:
-            print(f"PPR failed: {e}")
-            return {node: 0.0 for node in self.graph.nodes()}
+            print(f"PPR failed with error: {type(e).__name__}: {e}")
+            # Fallback: Return seed nodes with high scores, others with low scores
+            fallback_scores = {node: 0.01 for node in self.graph.nodes()}
+            for seed in valid_seeds:
+                fallback_scores[seed] = 1.0 / len(valid_seeds)
+            print(f"Using fallback: giving high scores to {len(valid_seeds)} seed nodes")
+            return fallback_scores
     
     def get_node_data(self, node_id: str) -> Optional[Dict]:
         """
@@ -214,8 +251,8 @@ class RegulationGraphBuilder:
         filepath = Path(filepath)
         filepath.parent.mkdir(parents=True, exist_ok=True)
         
-        # Save graph
-        graph_data = nx.node_link_data(self.graph)
+        # Save graph (explicitly set edges='links' to suppress NetworkX 3.6 warning)
+        graph_data = nx.node_link_data(self.graph, edges='links')
         with open(filepath, 'w') as f:
             json.dump(graph_data, f, indent=2)
         
@@ -235,7 +272,8 @@ class RegulationGraphBuilder:
         # Load graph
         with open(filepath, 'r') as f:
             graph_data = json.load(f)
-        self.graph = nx.node_link_graph(graph_data)
+        # Explicitly set edges='links' to suppress NetworkX 3.6 warning
+        self.graph = nx.node_link_graph(graph_data, edges='links')
         
         # Load embeddings
         embedding_file = filepath.with_suffix('.embeddings.npz')

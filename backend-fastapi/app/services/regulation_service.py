@@ -1,5 +1,6 @@
 """Service for handling regulation documents and compliance checking"""
 
+import asyncio
 import json
 import re
 from pathlib import Path
@@ -35,7 +36,7 @@ class RegulationService:
         print("Embedding model loaded")
         
         # Load existing graph if available
-        graph_path = Path("./data/graphs/FDA-2024.json")
+        graph_path = Path("./data/usa/graphs/FDA-2024.json")
         if graph_path.exists():
             print(f"Loading existing graph from {graph_path}...")
             self.graph_builder.load(str(graph_path))
@@ -49,6 +50,54 @@ class RegulationService:
             name="regulations",
             metadata={"description": "Regulation clauses and requirements"}
         )
+    
+    def _extract_and_clean_json(self, response_text: str) -> Optional[List]:
+        """
+        Robustly extract and parse JSON from LLM response.
+        Handles: markdown code blocks, extra text, common formatting issues.
+        
+        Args:
+            response_text: Raw response from LLM
+            
+        Returns:
+            Parsed JSON array or None if parsing fails
+        """
+        # Remove markdown code blocks
+        response_text = re.sub(r'```json\s*', '', response_text)
+        response_text = re.sub(r'```\s*', '', response_text)
+        
+        # Try to extract JSON array using regex
+        json_match = re.search(r'\[.*\]', response_text, re.DOTALL)
+        if json_match:
+            json_str = json_match.group()
+        else:
+            json_str = response_text.strip()
+        
+        # Clean common issues
+        # Fix unescaped quotes in strings (simple heuristic)
+        # This is a best-effort fix for common LLM mistakes
+        
+        # Try parsing multiple times with different cleaning strategies
+        strategies = [
+            lambda s: s,  # Try as-is first
+            lambda s: s.replace('\n', ' '),  # Remove newlines
+            lambda s: re.sub(r',\s*([}\]])', r'\1', s),  # Remove trailing commas
+            lambda s: s.replace('\\"', '"').replace('"', '\\"').replace('\\"', '"', 1),  # Fix quote escaping (basic)
+        ]
+        
+        for i, clean_fn in enumerate(strategies):
+            try:
+                cleaned = clean_fn(json_str)
+                return json.loads(cleaned)
+            except json.JSONDecodeError as e:
+                if i == len(strategies) - 1:
+                    # Last strategy failed, give up
+                    print(f"    JSON parse error after all strategies: {str(e)[:100]}")
+                    return None
+                # Try next strategy
+                continue
+        
+        return None
     
     def extract_text_from_pdf(self, pdf_path: str) -> str:
         """
@@ -171,48 +220,55 @@ class RegulationService:
             response = await self.agent.call(prompt, temperature=0.3)
             response_text = self.agent.get_text_response(response)
             
-            # Extract JSON from response
-            json_match = re.search(r'\[.*\]', response_text, re.DOTALL)
-            if json_match:
-                requirements_data = json.loads(json_match.group())
-            else:
-                requirements_data = json.loads(response_text)
+            # Extract and clean JSON
+            requirements_data = self._extract_and_clean_json(response_text)
+            
+            if not requirements_data:
+                print(f"    ⚠️  Failed to parse JSON from chunk {chunk_id}, skipping")
+                return []
             
             # Convert to RegulationClause objects
             clauses = []
             for req_data in requirements_data:
-                # Generate unique ID
-                req_id = f"{authority}-CHUNK{chunk_id}-{req_data['id']}"
-                
-                clause = RegulationClause(
-                    id=req_id,
-                    text=req_data['text'],
-                    section=req_data.get('topic', 'general'),  # Use topic as "section"
-                    clause_number=req_data['id'],
-                    requirement_type=req_data.get('requirement_type'),
-                    severity=req_data.get('severity'),
-                )
-                clauses.append(clause)
+                try:
+                    # Generate unique ID
+                    req_id = f"{authority}-CHUNK{chunk_id}-{req_data['id']}"
+                    
+                    clause = RegulationClause(
+                        id=req_id,
+                        text=req_data['text'],
+                        section=req_data.get('topic', 'general'),  # Use topic as "section"
+                        clause_number=req_data['id'],
+                        requirement_type=req_data.get('requirement_type'),
+                        severity=req_data.get('severity'),
+                    )
+                    clauses.append(clause)
+                except (KeyError, TypeError) as e:
+                    print(f"    ⚠️  Skipping malformed requirement in chunk {chunk_id}: {e}")
+                    continue
             
             return clauses
         
         except Exception as e:
-            print(f"Error parsing chunk: {e}")
+            print(f"    ⚠️  Error parsing chunk {chunk_id}: {e}")
             return []
     
     async def parse_regulation_with_agent(
         self,
         text: str,
         country: str,
-        authority: str
+        authority: str,
+        batch_size: int = 50
     ) -> List[RegulationClause]:
         """
         Use agent to parse MESSY regulation text into semantic requirement chunks
+        Optimized with concurrent batch processing
         
         Args:
             text: Regulation text (unstructured, messy)
             country: Country (USA, EU, Japan)
             authority: Authority (FDA, EMA, PMDA)
+            batch_size: Number of chunks to process concurrently (default: 50)
             
         Returns:
             List of RegulationClause objects
@@ -224,107 +280,159 @@ class RegulationService:
             chunks = self._chunk_text(text, max_chunk_size)
             all_clauses = []
             print(f"  Total chunks to process: {len(chunks)}")
-            for i, chunk in enumerate(chunks):  # Process ALL chunks
-                print(f"  Processing chunk {i+1}/{len(chunks)}...")
-                chunk_clauses = await self._parse_chunk(chunk, country, authority, i)
-                all_clauses.extend(chunk_clauses)
-                print(f"    → Extracted {len(chunk_clauses)} requirements from chunk {i+1}")
+            print(f"  Processing in batches of {batch_size} for speed...")
+            
+            # Process chunks in batches concurrently
+            for batch_start in range(0, len(chunks), batch_size):
+                batch_end = min(batch_start + batch_size, len(chunks))
+                batch = chunks[batch_start:batch_end]
+                
+                print(f"  Processing batch {batch_start//batch_size + 1} (chunks {batch_start+1}-{batch_end})...")
+                
+                # Process entire batch concurrently using asyncio.gather
+                tasks = [
+                    self._parse_chunk(chunk, country, authority, batch_start + i)
+                    for i, chunk in enumerate(batch)
+                ]
+                batch_results = await asyncio.gather(*tasks)
+                
+                # Combine results
+                for chunk_clauses in batch_results:
+                    all_clauses.extend(chunk_clauses)
+                
+                print(f"    → Extracted {sum(len(r) for r in batch_results)} requirements from batch")
+            
+            print(f"  ✓ Total requirements extracted: {len(all_clauses)}")
             return all_clauses
         else:
             return await self._parse_chunk(text, country, authority, 0)
     
-    async def extract_triplets_with_agent(
+    async def _extract_triplets_for_batch(
         self,
-        clauses: List[RegulationClause]
+        batch_clauses: List[RegulationClause],
+        batch_num: int
     ) -> List[RegulationTriplet]:
-        """
-        Use agent to extract SEMANTIC relationships between requirements
-        (No structural assumptions - pure semantic analysis)
+        """Extract triplets for a single batch of clauses"""
+        clauses_summary = "\n".join([
+            f"{clause.id} [{clause.section}]: {clause.text[:80]}..."
+            for clause in batch_clauses
+        ])
         
-        Args:
-            clauses: List of regulation clauses
-            
-        Returns:
-            List of RegulationTriplet objects
-        """
-        # Create summary of all clauses (process in batches if too many)
-        batch_size = 30
-        all_triplets = []
+        prompt = f"""
+        Analyze these regulatory requirements and find which ones are RELATED to each other.
         
-        for batch_start in range(0, len(clauses), batch_size):
-            batch_end = min(batch_start + batch_size, len(clauses))
-            batch_clauses = clauses[batch_start:batch_end]
+        These are extracted from MESSY, UNSTRUCTURED text.
+        Find relationships based on MEANING - which requirements:
+        - Cover similar topics
+        - Work together for compliance
+        - Depend on each other
+        - Implement related concepts
+        
+        Requirements:
+        {clauses_summary}
+        
+        Return as JSON array (find at least 15-20 relationships - be thorough!):
+        [
+          {{
+            "subject": "FDA-CHUNK0-REQ-001",
+            "predicate": "RELATED_TO",
+            "object": "FDA-CHUNK0-REQ-005",
+            "confidence": 0.85,
+            "reason": "both about system validation and quality control"
+          }},
+          {{
+            "subject": "FDA-CHUNK0-REQ-003",
+            "predicate": "RELATED_TO",
+            "object": "FDA-CHUNK0-REQ-007",
+            "confidence": 0.78,
+            "reason": "both address data integrity and record keeping"
+          }},
+          ...
+        ]
+        
+        Be GENEROUS with relationships - find ALL meaningful connections!
+        Look for: same topic, related processes, prerequisite relationships, complementary requirements.
+        """
+        
+        try:
+            response = await self.agent.call(prompt, temperature=0.3)
+            response_text = self.agent.get_text_response(response)
             
-            clauses_summary = "\n".join([
-                f"{clause.id} [{clause.section}]: {clause.text[:80]}..."
-                for clause in batch_clauses
-            ])
+            # Extract and clean JSON
+            triplets_data = self._extract_and_clean_json(response_text)
             
-            if batch_start > 0:
-                print(f"  Analyzing relationships for clauses {batch_start+1}-{batch_end}...")
+            if not triplets_data:
+                print(f"  ⚠️  Failed to parse JSON from batch {batch_num}, skipping")
+                return []
             
-            # ✅ Prompt is now INSIDE the loop
-            prompt = f"""
-            Analyze these regulatory requirements and find which ones are RELATED to each other.
-            
-            These are extracted from MESSY, UNSTRUCTURED text.
-            Find relationships based on MEANING - which requirements:
-            - Cover similar topics
-            - Work together for compliance
-            - Depend on each other
-            - Implement related concepts
-            
-            Requirements:
-            {clauses_summary}
-            
-            Return as JSON array (find at least 8-12 relationships):
-            [
-              {{
-                "subject": "FDA-CHUNK0-REQ-001",
-                "predicate": "RELATED_TO",
-                "object": "FDA-CHUNK0-REQ-005",
-                "confidence": 0.85,
-                "reason": "both about system validation and quality control"
-              }},
-              {{
-                "subject": "FDA-CHUNK0-REQ-003",
-                "predicate": "RELATED_TO",
-                "object": "FDA-CHUNK0-REQ-007",
-                "confidence": 0.78,
-                "reason": "both address data integrity and record keeping"
-              }},
-              ...
-            ]
-            
-            Focus on MEANINGFUL relationships. Higher confidence for stronger relationships.
-            """
-            
-            try:
-                # ✅ Agent called for EACH batch
-                response = await self.agent.call(prompt, temperature=0.3)
-                response_text = self.agent.get_text_response(response)
-                
-                # Extract JSON
-                json_match = re.search(r'\[.*\]', response_text, re.DOTALL)
-                if json_match:
-                    triplets_data = json.loads(json_match.group())
-                else:
-                    triplets_data = json.loads(response_text)
-                
-                # Convert to RegulationTriplet objects
-                for triplet_data in triplets_data:
+            # Convert to RegulationTriplet objects
+            batch_triplets = []
+            for triplet_data in triplets_data:
+                try:
                     triplet = RegulationTriplet(
                         subject=triplet_data['subject'],
                         predicate=triplet_data['predicate'],
                         object=triplet_data['object'],
                         confidence=triplet_data.get('confidence', 0.8),
                     )
-                    all_triplets.append(triplet)
-            
-            except Exception as e:
-                print(f"  Warning: Error extracting triplets for batch {batch_start}-{batch_end}: {e}")
-                continue
+                    batch_triplets.append(triplet)
+                except (KeyError, TypeError) as e:
+                    print(f"    ⚠️  Skipping malformed triplet in batch {batch_num}: {e}")
+                    continue
+            return batch_triplets
         
+        except Exception as e:
+            print(f"  ⚠️  Error extracting triplets for batch {batch_num}: {e}")
+            return []
+    
+    async def extract_triplets_with_agent(
+        self,
+        clauses: List[RegulationClause],
+        batch_size: int = 30,
+        concurrent_batches: int = 10
+    ) -> List[RegulationTriplet]:
+        """
+        Use agent to extract SEMANTIC relationships between requirements
+        Optimized with concurrent batch processing
+        
+        Args:
+            clauses: List of regulation clauses
+            batch_size: Number of clauses per batch (default: 30)
+            concurrent_batches: Number of batches to process concurrently (default: 10)
+            
+        Returns:
+            List of RegulationTriplet objects
+        """
+        print(f"  Processing {len(clauses)} clauses in batches of {batch_size}")
+        print(f"  Running {concurrent_batches} batches concurrently for speed...")
+        
+        # Split clauses into batches
+        batches = []
+        for batch_start in range(0, len(clauses), batch_size):
+            batch_end = min(batch_start + batch_size, len(clauses))
+            batches.append(clauses[batch_start:batch_end])
+        
+        all_triplets = []
+        
+        # Process batches concurrently in groups
+        for group_start in range(0, len(batches), concurrent_batches):
+            group_end = min(group_start + concurrent_batches, len(batches))
+            batch_group = batches[group_start:group_end]
+            
+            print(f"  Processing batch group {group_start//concurrent_batches + 1}/{(len(batches)-1)//concurrent_batches + 1}...")
+            
+            # Process this group of batches concurrently
+            tasks = [
+                self._extract_triplets_for_batch(batch, group_start + i)
+                for i, batch in enumerate(batch_group)
+            ]
+            group_results = await asyncio.gather(*tasks)
+            
+            # Combine results
+            for batch_triplets in group_results:
+                all_triplets.extend(batch_triplets)
+        
+        print(f"  ✓ Extracted {len(all_triplets)} relationships")
         return all_triplets
     
     def embed_clauses(self, clauses: List[RegulationClause]) -> List[RegulationClause]:
@@ -383,10 +491,9 @@ class RegulationService:
         triplets: List[RegulationTriplet]
     ):
         """
-        Build knowledge graph with 3 edge types:
-        1. LLM-based edges (from agent triplets)
-        2. Semantic similarity edges (from embeddings)
-        3. Nearby chunk edges (connect adjacent requirements)
+        Build knowledge graph with 2 edge types (weighted differently in PPR):
+        1. LLM-based edges (RELATED_TO) - HIGH weight, contextual understanding
+        2. Semantic similarity edges (SIMILAR_TO) - LOW weight, backup connections
         
         Args:
             regulation_doc: RegulationDocument
@@ -396,19 +503,21 @@ class RegulationService:
         for clause in regulation_doc.clauses:
             self.graph_builder.add_clause_node(clause)
         
-        # Edge Type 1: LLM-based semantic relationships (from agent)
+        # Edge Type 1: LLM-based semantic relationships (HIGH WEIGHT)
+        # These are high-quality, contextual relationships identified by the LLM
         for triplet in triplets:
+            # Mark as high weight for PPR
+            triplet.confidence = 1.0  # High weight
             self.graph_builder.add_triplet(triplet)
         
-        # Edge Type 2: Semantic similarity edges (from embeddings)
+        # Edge Type 2: Semantic similarity edges (LOW WEIGHT)
+        # Sparse backup connections based on embeddings
         self.graph_builder.add_semantic_similarity_edges(
             regulation_doc.clauses,
-            similarity_threshold=0.75,
-            max_edges_per_node=5
+            similarity_threshold=0.80,  # Higher threshold = fewer edges
+            max_edges_per_node=2,  # Very sparse (was 5)
+            edge_weight=0.1  # Low weight for PPR
         )
-        
-        # Edge Type 3: Nearby chunk edges (connect to immediate neighbor only)
-        self.graph_builder.add_nearby_chunk_edges(regulation_doc.clauses)
     
     async def ingest_regulation(
         self,
@@ -476,7 +585,7 @@ class RegulationService:
         
         # Step 8: Save graph persistently
         print("Step 7: Saving graph...")
-        graph_path = f"./data/graphs/{authority}-{version}.json"
+        graph_path = f"./data/usa/graphs/{authority}-{version}.json"
         self.graph_builder.save(graph_path)
         print(f"Graph saved to {graph_path}")
         
@@ -511,15 +620,41 @@ class RegulationService:
         )
         
         if not vector_results['ids'][0]:
+            print(f"Vector search returned no results for country={country}")
             return []
         
         seed_node_ids = vector_results['ids'][0]
+        print(f"Vector search found {len(seed_node_ids)} seed nodes")
+        
+        # Verify seeds exist in graph
+        valid_seeds = []
+        missing_seeds = []
+        for sid in seed_node_ids:
+            if self.graph_builder.graph.has_node(sid):
+                valid_seeds.append(sid)
+            else:
+                missing_seeds.append(sid)
+        
+        if missing_seeds:
+            print(f"⚠️  WARNING: {len(missing_seeds)} seed nodes not in graph:")
+            for msid in missing_seeds[:3]:
+                print(f"   - {msid}")
+        
+        print(f"✓ Valid seeds in graph: {len(valid_seeds)}/{len(seed_node_ids)}")
+        
+        if not valid_seeds:
+            print("ERROR: No seed nodes found in graph! Vector DB and graph are out of sync.")
+            return []
         
         # Step 2: Run Personalized PageRank
         ppr_scores = self.graph_builder.personalized_pagerank(
-            seed_nodes=seed_node_ids,
+            seed_nodes=seed_node_ids,  # Will be filtered internally
             alpha=0.85
         )
+        
+        if not ppr_scores:
+            print("ERROR: PPR returned empty scores")
+            return []
         
         # Step 3: Rank all nodes by PPR score
         ranked_nodes = sorted(
@@ -527,6 +662,8 @@ class RegulationService:
             key=lambda x: x[1],
             reverse=True
         )
+        
+        print(f"Top 3 PPR scores: {[(nid[:20], f'{score:.4f}') for nid, score in ranked_nodes[:3]]}")
         
         # Step 4: Get top-K nodes
         results = []
@@ -541,6 +678,7 @@ class RegulationService:
                     "severity": node_data.get('severity', ''),
                 })
         
+        print(f"Returning {len(results)} regulation clauses")
         return results
     
     async def check_protocol_compliance(

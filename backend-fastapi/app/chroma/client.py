@@ -10,12 +10,12 @@ from chromadb.config import Settings
 class ChromaClient:
     """Client for interacting with ChromaDB with persistent storage"""
 
-    def __init__(self, persist_directory: str = "./data/chroma"):
+    def __init__(self, persist_directory: str = "./data/usa/chroma"):
         """
         Initialize ChromaDB client with persistent storage
 
         Args:
-            persist_directory: Directory path for persistent storage (default: ./data/chroma)
+            persist_directory: Directory path for persistent storage (default: ./data/usa/chroma)
         """
         self.persist_directory = Path(persist_directory)
         self.persist_directory.mkdir(parents=True, exist_ok=True)
@@ -84,7 +84,7 @@ class ChromaClient:
 _chroma_client: Optional[ChromaClient] = None
 
 
-def get_chroma_client(persist_directory: str = "./data/chroma") -> ChromaClient:
+def get_chroma_client(persist_directory: str = "./data/usa/chroma") -> ChromaClient:
     """
     Get singleton ChromaDB client instance
 
