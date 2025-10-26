@@ -81,6 +81,296 @@ This approach finds:
 
 ---
 
+## Agent System Architecture
+
+Harmoniq uses a **multi-agent orchestration system** where specialized LLM agents handle different stages of the compliance pipeline.
+
+### Agent Workflow
+
+```mermaid
+graph TB
+    A[Upload Regulation PDF] --> B[Agent 1: Parse & Extract]
+    B --> C[Agent 2: Find Relationships]
+    C --> D[Storage: Vectors + Graph]
+    
+    E[Upload Protocol PDF] --> F[Agent 3: Compliance Check]
+    D --> F
+    F --> G[Agent 4: Fix Generator]
+    
+    G --> H[Compliance Report + Fixes]
+    
+    style B fill:#e1f5ff
+    style C fill:#e1f5ff
+    style F fill:#ffe1e1
+    style G fill:#ffe1e1
+```
+
+### Agent Details
+
+#### **Agent 1: Regulation Parser**
+**Purpose:** Extract structured requirements from messy PDFs
+
+**Input:** Raw regulation PDF (21 CFR Part 11, ICH-GCP, etc.)
+
+**Process:**
+1. Extract text chunks (handle tables, multi-column layouts, footnotes)
+2. Send to LLM with prompt: *"Extract atomic regulatory requirements"*
+3. LLM returns structured JSON:
+```json
+{
+  "requirements": [
+    {
+      "id": "FDA-CHUNK0-REQ-001",
+      "text": "Systems must be validated to ensure accuracy",
+      "section": "validation",
+      "severity": "critical"
+    }
+  ]
+}
+```
+
+**Output:** 25-50 structured requirements per regulation document
+
+---
+
+#### **Agent 2: Relationship Extractor**
+**Purpose:** Build knowledge graph by finding semantic relationships
+
+**Input:** List of extracted requirements from Agent 1
+
+**Process:**
+1. Send all requirements to LLM with prompt: *"Which requirements are logically related?"*
+2. LLM identifies relationships:
+   - "Validation required" → RELATED_TO → "Audit trails required"
+   - "IRB approval" → RELATED_TO → "Informed consent"
+3. Returns triplets with confidence scores
+
+**Output:** 
+- 100-200 RELATED_TO edges (LLM-detected)
+- Knowledge graph structure (NetworkX)
+- Vector embeddings stored in ChromaDB
+
+**Graph Construction:**
+```python
+# Agent 2 execution
+for req in requirements:
+    # 1. Generate embedding
+    embedding = sentence_transformer.encode(req.text)
+    chromadb.add(req.id, embedding)
+    graph.add_node(req.id, text=req.text)
+
+# 2. LLM extracts relationships
+triplets = llm_agent.extract_relationships(requirements)
+for triplet in triplets:
+    graph.add_edge(triplet.subject, triplet.object, 
+                   relation="RELATED_TO", weight=1.0)
+
+# 3. Add similarity edges
+similarity_matrix = cosine_similarity(embeddings)
+for i, j where similarity > 0.75:
+    graph.add_edge(req[i], req[j], 
+                   relation="SIMILAR_TO", weight=0.1)
+
+# 4. Add sequential edges
+for i in range(len(requirements) - 1):
+    graph.add_edge(req[i], req[i+1], 
+                   relation="NEARBY", weight=0.3)
+```
+
+---
+
+#### **Agent 3: Compliance Checker**
+**Purpose:** Analyze protocol paragraphs against regulations
+
+**Input:** 
+- Protocol paragraph (1-3 pages)
+- Top-10 retrieved regulations (from HippoRAG)
+
+**Process:**
+1. HippoRAG retrieves relevant regulations:
+   ```python
+   # Vector search (seeds)
+   seeds = chromadb.query(paragraph_embedding, top_k=5)
+   
+   # Graph propagation
+   ppr_scores = nx.pagerank(graph, personalization=seeds)
+   top_10_regulations = sorted(ppr_scores)[:10]
+   ```
+
+2. LLM analyzes compliance:
+   - Prompt: *"Does this paragraph comply with these regulations?"*
+   - Returns JSON for EACH regulation:
+   ```json
+   {
+     "regulation_id": "FDA-CHUNK0-REQ-001",
+     "is_compliant": false,
+     "probability": 0.92,
+     "severity": "critical",
+     "explanation": "Protocol does not mention validation",
+     "missing_elements": ["validation plan", "validation report"]
+   }
+   ```
+
+3. Filters low-confidence violations (< 0.85 threshold)
+
+**Output:** 0-10 violations per paragraph
+
+---
+
+#### **Agent 4: Fix Generator**
+**Purpose:** Propose targeted amendments to fix violations
+
+**Input:** 
+- Violations from Agent 3
+- Original protocol text
+
+**Process:**
+1. For each violation, LLM generates 1-2 minimal fixes:
+   - **Replace:** Original text → New compliant text
+   - **Add:** Insert new compliance language
+   - **Delete:** Remove conflicting statement
+
+2. Returns structured diffs:
+```json
+{
+  "violation_id": "FDA-CHUNK0-REQ-001",
+  "fix_type": "add",
+  "location": "Section 3.2 - Data Management",
+  "original": "",
+  "proposed": "All electronic systems will be validated per 21 CFR Part 11 requirements. Validation documentation will be maintained for the duration of the trial."
+}
+```
+
+**Output:** Actionable amendments sorted by severity
+
+---
+
+### Complete Compliance Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant API
+    participant Agent1
+    participant Agent2
+    participant Storage
+    participant Agent3
+    participant Agent4
+    
+    Note over User,Storage: PHASE 1: REGULATION INGESTION
+    User->>API: Upload FDA Regulation PDF
+    API->>Agent1: Extract Requirements
+    Agent1->>Agent1: Parse PDF → 25 requirements
+    Agent1-->>API: Structured Requirements JSON
+    API->>Agent2: Find Relationships
+    Agent2->>Agent2: LLM analyzes semantic links
+    Agent2-->>API: 87 relationship triplets
+    API->>Storage: Store vectors + build graph
+    Storage-->>User: ✓ Regulation loaded (703 nodes, 876 edges)
+    
+    Note over User,Agent4: PHASE 2: PROTOCOL COMPLIANCE CHECK
+    User->>API: Upload Protocol PDF + Country
+    API->>API: Split into 12 chunks
+    
+    loop For each chunk (parallel)
+        API->>Storage: Vector search (top-5 seeds)
+        Storage-->>API: Seed nodes
+        API->>Storage: PageRank propagation
+        Storage-->>API: Top-10 regulations
+        API->>Agent3: Check compliance
+        Agent3->>Agent3: LLM analyzes vs regulations
+        Agent3-->>API: 0-5 violations found
+    end
+    
+    API->>API: Aggregate results (15 total violations)
+    API-->>User: Compliance Report (score: 0.72)
+    
+    Note over User,Agent4: PHASE 3: FIX GENERATION
+    User->>API: Request fixes
+    API->>Agent4: Generate amendments
+    Agent4->>Agent4: LLM proposes diffs
+    Agent4-->>API: 15 targeted fixes
+    API-->>User: Amendment recommendations
+```
+
+---
+
+### Agent Prompt Examples
+
+#### Agent 1 (Parser)
+```
+You are a regulatory text extraction agent.
+
+Extract ATOMIC requirements from this FDA regulation text.
+Each requirement should be:
+- Self-contained (understandable without context)
+- Actionable (clear what must be done)
+- Categorized by severity (critical/high/medium/low)
+
+Return as JSON array.
+```
+
+#### Agent 2 (Relationships)
+```
+You are a regulatory relationship analyzer.
+
+Given these requirements, identify which ones are LOGICALLY RELATED:
+- Work together for compliance
+- Depend on each other
+- Reference the same underlying concept
+
+Return triplets: (subject, RELATED_TO, object, confidence)
+```
+
+#### Agent 3 (Compliance)
+```
+You are a LENIENT clinical trial compliance expert.
+
+Check if this protocol paragraph complies with these regulations.
+
+ASSUME COMPLIANCE unless there is CLEAR, EXPLICIT violation.
+Missing procedural details = COMPLIANT (assume in other sections).
+
+For each regulation, return:
+- is_compliant: true/false
+- probability: 0.0-1.0 (must be >0.85 to flag violation)
+- explanation: brief reason
+- missing_elements: list of specific gaps
+```
+
+#### Agent 4 (Fixes)
+```
+You are a protocol amendment generator.
+
+For this violation, propose 1-2 MINIMAL changes to achieve compliance.
+
+Output format:
+- fix_type: "replace" | "add" | "delete"
+- location: section reference
+- original: current text (if replacing/deleting)
+- proposed: new compliant text
+
+Keep changes surgical — do NOT rewrite entire sections.
+```
+
+---
+
+### Why Multi-Agent Architecture?
+
+**Separation of Concerns:**
+- Agent 1 focuses on extraction (no relationship reasoning)
+- Agent 2 focuses on relationships (no compliance judgment)
+- Agent 3 focuses on compliance (no fix generation)
+- Agent 4 focuses on fixes (no compliance assessment)
+
+**Benefits:**
+- **Modularity:** Replace Agent 3 without affecting Agent 1/2
+- **Testability:** Validate each agent independently
+- **Scalability:** Parallelize Agent 3 across 12 chunks
+- **Explainability:** Each agent produces traceable outputs
+
+---
+
 ## System Overview
 
 ```

@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Clinical trial compliance checker with HippoRAG"
 authors = ["Vardhan Shorewala <vardhanshorewala@berkeley.edu>"]
 readme = "README.md"
+packages = []
 
 [tool.poetry.dependencies]
 python = ">=3.12,<4"
