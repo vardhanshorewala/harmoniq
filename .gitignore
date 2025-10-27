@@ -1,0 +1,6 @@
+# macOS
+.DS_Store
+
+# Data directory - keep local but don't track in git
+backend-fastapi/data/
+
