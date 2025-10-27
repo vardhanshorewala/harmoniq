@@ -133,14 +133,20 @@ export default function DashboardPage() {
   useEffect(() => {
     const storedMarkdown = sessionStorage.getItem("originalMarkdown");
     const storedName = sessionStorage.getItem("uploadedFileName");
-    const storedPdfData = sessionStorage.getItem("uploadedFileData"); // base64 data
+    const storedPdfData = sessionStorage.getItem("uploadedFileData"); // base64 data (legacy)
+    const storedPdfPath = sessionStorage.getItem("uploadedFilePath"); // static file path
     const storedResults = sessionStorage.getItem("complianceResults");
 
     if (storedMarkdown) setMarkdownContent(storedMarkdown);
     if (storedName) setFileName(storedName);
 
-    // Convert base64 PDF data back to blob URL
-    if (storedPdfData) {
+    // Check if we have a static PDF path (new static mode)
+    if (storedPdfPath) {
+      setPdfUrl(storedPdfPath);
+      setViewMode("pdf");
+    }
+    // Convert base64 PDF data back to blob URL (legacy upload mode)
+    else if (storedPdfData) {
       try {
         // Convert base64 to blob
         fetch(storedPdfData)
@@ -181,7 +187,7 @@ export default function DashboardPage() {
     };
   }, []);
 
-  // Fetch graph data from backend (only after initialization)
+  // Load graph data from static files (only after initialization)
   useEffect(() => {
     if (!isInitialized || !selectedCountry) {
       console.log("⏳ Waiting for initialization...", {
@@ -194,9 +200,12 @@ export default function DashboardPage() {
     const fetchGraphData = async () => {
       try {
         setIsLoadingGraph(true);
-        const url = `http://localhost:8000/api/regulations/graph/data?country=${selectedCountry}`;
+        
+        // Load static graph data
+        const countryCode = selectedCountry.toLowerCase();
+        const url = `/static-data/graph-${countryCode}.json`;
         console.log(
-          "🌍 Fetching graph for country:",
+          "🌍 Loading static graph for country:",
           selectedCountry,
           "URL:",
           url,
@@ -205,7 +214,7 @@ export default function DashboardPage() {
         const response = await fetch(url);
 
         if (!response.ok) {
-          throw new Error("Failed to fetch graph data");
+          throw new Error("Failed to load graph data");
         }
 
         const data = await response.json();
@@ -320,48 +329,26 @@ export default function DashboardPage() {
     setFixError(null);
 
     try {
-      // Get the original PDF file data from sessionStorage
-      const storedFileData = sessionStorage.getItem("uploadedFileData");
-      if (!storedFileData) {
-        throw new Error("Original PDF not found");
+      // Load static fix data for selected country
+      const countryCode = selectedCountry?.toLowerCase() || "usa";
+      const response = await fetch(`/static-data/fixes-${countryCode}.json`);
+
+      if (!response.ok) {
+        throw new Error("Failed to load fix data");
       }
 
-      // Convert base64 back to blob
-      const base64Response = await fetch(storedFileData);
-      const blob = await base64Response.blob();
+      const fixedResult = await response.json();
 
-      // Create FormData
-      const formData = new FormData();
-      formData.append("file", blob, fileName || "protocol.pdf");
-      formData.append("compliance_results", JSON.stringify(complianceResults));
-      formData.append("country", selectedCountry || "USA");
-
-      // Send to backend
-      const fixResponse = await fetch(
-        "http://localhost:8000/api/regulations/fix-pdf-violations",
-        {
-          method: "POST",
-          body: formData,
-        },
-      );
-
-      if (!fixResponse.ok) {
-        throw new Error("Failed to fix violations");
-      }
-
-      // Get the proposed changes (diffs)
-      const fixedResult = await fixResponse.json();
-
-      console.log(`Received ${fixedResult.total_changes} proposed changes`);
+      console.log(`Loaded ${fixedResult.total_changes} proposed changes from static data`);
 
       // Store the proposed changes and show diff view
       setProposedChanges(fixedResult.changes || []);
       setShowDiffs(true);
       setViewMode("markdown"); // Switch to markdown view to show diffs
     } catch (error) {
-      console.error("Error fixing violations:", error);
+      console.error("Error loading fix data:", error);
       setFixError(
-        error instanceof Error ? error.message : "Failed to fix violations",
+        error instanceof Error ? error.message : "Failed to load fix data",
       );
     } finally {
       setIsFixingViolations(false);
@@ -440,6 +427,11 @@ export default function DashboardPage() {
       // Add center force to keep graph centered
       graphRef.current.d3Force("center", d3.forceCenter(0, 0, 0).strength(0.1));
       graphRef.current.d3Force("collision", d3.forceCollide().radius(35)); // Smaller collision
+      
+      // Warm up the simulation to get better initial positions
+      if (graphRef.current.d3ReheatSimulation) {
+        graphRef.current.d3ReheatSimulation();
+      }
 
       // Load node positions from session storage or generate new ones
       const storageKey = "harmoniq-graph-positions";
@@ -492,6 +484,24 @@ export default function DashboardPage() {
       }
 
       // Center the entire graph and restore camera position if saved
+      // Wait longer for initial layout to compute
+      setTimeout(() => {
+        if (graphRef.current) {
+          // First, let the simulation run for a bit
+          if (graphRef.current.d3ReheatSimulation) {
+            graphRef.current.d3ReheatSimulation();
+          }
+          
+          // Then zoom to fit after simulation has run
+          setTimeout(() => {
+            if (graphRef.current) {
+              graphRef.current.zoomToFit(2000, 80);
+            }
+          }, 500);
+        }
+      }, 1000);
+      
+      // Additional zoom to fit after more time has passed (ensures proper layout)
       setTimeout(() => {
         if (graphRef.current) {
           // Just use zoomToFit to show all nodes properly
@@ -519,7 +529,7 @@ export default function DashboardPage() {
           // Cleanup interval on unmount
           return () => clearInterval(saveInterval);
         }
-      }, 500);
+      }, 2000);
     });
 
     return () => clearTimeout(timer);
@@ -668,6 +678,26 @@ export default function DashboardPage() {
 
           {/* Spacer */}
           <div className="flex-1"></div>
+
+          {/* Static Mode Badge */}
+          <div className="mr-4 flex items-center gap-2 rounded-lg border border-yellow-500/20 bg-yellow-500/10 px-3 py-1.5">
+            <svg
+              className="h-4 w-4 text-yellow-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            <span className="text-xs font-medium text-yellow-400">
+              Static Demo Mode
+            </span>
+          </div>
 
           {/* Profile (fixed position) */}
           <div className="relative">
@@ -990,7 +1020,7 @@ export default function DashboardPage() {
                     </div>
                   )}
 
-                  {/* Fix Violations Button - only show if there are violations */}
+                  {/* Fix Violations Button */}
                   {violatedRegulationIds.size > 0 && (
                     <button
                       onClick={handleFixViolations}

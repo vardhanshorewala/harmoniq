@@ -1,0 +1,152 @@
+{
+  "filename": "AT201_FDA_Noncompliant_Protocol.pdf",
+  "country": "EUROPE",
+  "total_chunks": 14,
+  "processed_chunks": 14,
+  "overall_compliance_score": 0.0,
+  "overall_status": "COMPLIANT",
+  "total_violations": 0,
+  "critical_violations": 0,
+  "chunk_results": [
+    {
+      "chunk_index": 0,
+      "chunk_text": "Phase 3 Clinical Trial Protocol \u2013 AT-201 for Postmenopausal Osteoporosis Indication: Post-menopausal osteoporosis Sponsor: Acme Therapeutics, Inc. Region of Filing: United States (IND under 21 CFR Par...",
+      "total_regulations_checked": 0,
+      "compliant_count": 0,
+      "non_compliant_count": 0,
+      "compliance_score": 0.0,
+      "status": "ERROR",
+      "violations": []
+    },
+    {
+      "chunk_index": 1,
+      "chunk_text": "Synopsis (Purpose & Design) This randomized, open-label Phase 3 trial evaluates AT-201 for vertebral fracture prevention over 18 months. Approximately 3,500 women will receive either AT-201 or no",
+      "total_regulations_checked": 0,
+      "compliant_count": 0,
+      "non_compliant_count": 0,
+      "compliance_score": 0.0,
+      "status": "ERROR",
+      "violations": []
+    },
+    {
+      "chunk_index": 2,
+      "chunk_text": "treatment. The study will be conducted across North America and South America. Primary endpoint: rate of new vertebral fractures at 12 months. Secondary: lumbar spine BMD improvement. Population",
+      "total_regulations_checked": 0,
+      "compliant_count": 0,
+      "non_compliant_count": 0,
+      "compliance_score": 0.0,
+      "status": "ERROR",
+      "violations": []
+    },
+    {
+      "chunk_index": 3,
+      "chunk_text": "Women aged 50\u201390 years. No exclusion criteria will be enforced beyond known allergy to study drug ingredients. Pregnant women and minors may be enrolled at the investigator\u2019s discretion. Interventions",
+      "total_regulations_checked": 0,
+      "compliant_count": 0,
+      "non_compliant_count": 0,
+      "compliance_score": 0.0,
+      "status": "ERROR",
+      "violations": []
+    },
+    {
+      "chunk_index": 4,
+      "chunk_text": "AT-201 100 \u00b5g daily administered subcutaneously; control group will receive no treatment. Participants may change dosing frequency based on personal preference. Safety Monitoring",
+      "total_regulations_checked": 0,
+      "compliant_count": 0,
+      "non_compliant_count": 0,
+      "compliance_score": 0.0,
+      "status": "ERROR",
+      "violations": []
+    },
+    {
+      "chunk_index": 5,
+      "chunk_text": "Adverse events will be collected voluntarily by subjects using a monthly web form. Investigators are not required to follow up on serious adverse events or deaths unless they",
+      "total_regulations_checked": 0,
+      "compliant_count": 0,
+      "non_compliant_count": 0,
+      "compliance_score": 0.0,
+      "status": "ERROR",
+      "violations": []
+    },
+    {
+      "chunk_index": 6,
+      "chunk_text": "occur onsite. Safety data will be summarized annually, and no Data and Safety Monitoring Board (DSMB) will be convened. Informed Consent and Ethics Oversight",
+      "total_regulations_checked": 0,
+      "compliant_count": 0,
+      "non_compliant_count": 0,
+      "compliance_score": 0.0,
+      "status": "ERROR",
+      "violations": []
+    },
+    {
+      "chunk_index": 7,
+      "chunk_text": "Participants will be informed verbally that their participation is optional. No written consent will be required. No IRB or ethics committee review will be obtained prior to",
+      "total_regulations_checked": 0,
+      "compliant_count": 0,
+      "non_compliant_count": 0,
+      "compliance_score": 0.0,
+      "status": "ERROR",
+      "violations": []
+    },
+    {
+      "chunk_index": 8,
+      "chunk_text": "initiation, as the sponsor believes the study poses minimal risk. No copies of consent forms will be retained. Participants will not be informed that FDA may inspect their records. Data and Quality Ma...",
+      "total_regulations_checked": 0,
+      "compliant_count": 0,
+      "non_compliant_count": 0,
+      "compliance_score": 0.0,
+      "status": "ERROR",
+      "violations": []
+    },
+    {
+      "chunk_index": 9,
+      "chunk_text": "Data will be recorded in spreadsheet files by site coordinators and uploaded monthly to the sponsor. Electronic signatures and audit trails are not required. No source data verification",
+      "total_regulations_checked": 0,
+      "compliant_count": 0,
+      "non_compliant_count": 0,
+      "compliance_score": 0.0,
+      "status": "ERROR",
+      "violations": []
+    },
+    {
+      "chunk_index": 10,
+      "chunk_text": "or monitoring visits are planned. Sites may implement their own recordkeeping systems. Data will be retained for at least 6 months after study completion. Regulatory and IND Compliance",
+      "total_regulations_checked": 0,
+      "compliant_count": 0,
+      "non_compliant_count": 0,
+      "compliance_score": 0.0,
+      "status": "ERROR",
+      "violations": []
+    },
+    {
+      "chunk_index": 11,
+      "chunk_text": "The IND will be filed post-study if data appear promising. No Form 1572 will be collected from investigators. No investigator brochure will be provided. Serious adverse events will",
+      "total_regulations_checked": 0,
+      "compliant_count": 0,
+      "non_compliant_count": 0,
+      "compliance_score": 0.0,
+      "status": "ERROR",
+      "violations": []
+    },
+    {
+      "chunk_index": 12,
+      "chunk_text": "be summarized in the annual report only, and not reported within the 15-day window specified in 21 CFR 312.32. Protocol changes do not require FDA notification and may be",
+      "total_regulations_checked": 0,
+      "compliant_count": 0,
+      "non_compliant_count": 0,
+      "compliance_score": 0.0,
+      "status": "ERROR",
+      "violations": []
+    },
+    {
+      "chunk_index": 13,
+      "chunk_text": "implemented immediately. The sponsor may delegate all regulatory responsibilities to local CROs without documentation.",
+      "total_regulations_checked": 0,
+      "compliant_count": 0,
+      "non_compliant_count": 0,
+      "compliance_score": 0.0,
+      "status": "ERROR",
+      "violations": []
+    }
+  ]
+}

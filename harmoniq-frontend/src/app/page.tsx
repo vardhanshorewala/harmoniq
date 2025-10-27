@@ -113,24 +113,7 @@ export default function HomePage() {
   ];
 
   const handleSubmit = async () => {
-    const pdfFiles = uploadedFiles.filter(
-      (file) => file.type === "application/pdf",
-    );
-    if (pdfFiles.length === 0) {
-      alert("Please upload at least one PDF file for analysis.");
-      return;
-    }
-    if (pdfFiles.length > 1) {
-      alert("Only one PDF file is allowed for analysis.");
-      return;
-    }
-
-    const pdfFile = pdfFiles[0];
-    if (!pdfFile) {
-      alert("PDF file not found.");
-      return;
-    }
-
+    // STATIC MODE: Load pre-generated compliance data
     setIsAnalyzing(true);
     setAnalysisError(null);
     setCurrentStep(0);
@@ -163,26 +146,13 @@ export default function HomePage() {
       };
       const countryCode = regionToCountry[selectedRegion] || "USA";
 
-      // Create FormData to send PDF to backend
-      const formData = new FormData();
-      formData.append("file", pdfFile);
-      formData.append("country", countryCode);
-      formData.append("top_k", "10");
-      formData.append("num_chunks", "12");
-      formData.append("compliance_focus", selectedStandard);
-
-      // Send to backend for compliance checking
+      // Load static compliance data for selected country
       const response = await fetch(
-        "http://localhost:8000/api/regulations/check-pdf-compliance",
-        {
-          method: "POST",
-          body: formData,
-        },
+        `/static-data/compliance-${countryCode.toLowerCase()}.json`,
       );
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || "Failed to analyze PDF");
+        throw new Error("Failed to load compliance data");
       }
 
       const result = await response.json();
@@ -191,41 +161,30 @@ export default function HomePage() {
       sessionStorage.setItem("complianceResults", JSON.stringify(result));
       sessionStorage.setItem("selectedCountry", countryCode);
 
-      // Convert PDF to Markdown for display
-      const markdownFormData = new FormData();
-      markdownFormData.append("file", pdfFile);
-
-      const markdownResponse = await fetch(
-        "http://localhost:8000/api/regulations/pdf-to-markdown",
-        {
-          method: "POST",
-          body: markdownFormData,
-        },
+      // Store dummy file info
+      sessionStorage.setItem(
+        "uploadedFileName",
+        "AT201_FDA_Noncompliant_Protocol.pdf",
       );
+      sessionStorage.setItem("uploadedFileSize", "2458963");
 
-      if (markdownResponse.ok) {
-        const markdownResult = await markdownResponse.json();
-        sessionStorage.setItem("originalMarkdown", markdownResult.markdown);
-      }
+      // Store PDF path for viewing
+      sessionStorage.setItem("uploadedFilePath", "/AT201_FDA_Noncompliant_Protocol.pdf");
 
-      // Store file info and actual file data in sessionStorage
-      sessionStorage.setItem("uploadedFileName", pdfFile.name);
-      sessionStorage.setItem("uploadedFileSize", pdfFile.size.toString());
-
-      // Convert file to base64 and store for later use
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64data = reader.result as string;
-        sessionStorage.setItem("uploadedFileData", base64data);
-      };
-      reader.readAsDataURL(pdfFile);
+      // Store simple markdown placeholder (we don't have actual markdown for static mode)
+      sessionStorage.setItem(
+        "originalMarkdown",
+        "# AT-201 Clinical Trial Protocol\n\nPhase 3 trial for postmenopausal osteoporosis. This is a static demo showing pre-analyzed compliance results.\n\n## Study Design\nRandomized, open-label Phase 3 trial evaluating AT-201 for vertebral fracture prevention over 18 months.",
+      );
 
       // Navigate to dashboard
       router.push("/dashboard");
     } catch (error) {
-      console.error("Error analyzing PDF:", error);
+      console.error("Error loading compliance data:", error);
       setAnalysisError(
-        error instanceof Error ? error.message : "Failed to analyze PDF",
+        error instanceof Error
+          ? error.message
+          : "Failed to load compliance data",
       );
       setCurrentStep(0);
     } finally {
@@ -258,27 +217,6 @@ export default function HomePage() {
 
       {/* Top Right Navigation - always show */}
       <div className="fixed top-6 right-6 z-50 flex items-center gap-3">
-        {/* Usage Button */}
-        <button
-          onClick={() => router.push("/usage")}
-          className="group hover:blue-glow flex cursor-pointer items-center gap-2 rounded-xl border border-blue-500/20 bg-[#0a0f1e]/90 px-4 py-2 backdrop-blur-xl transition-all duration-300 hover:border-blue-500/40"
-        >
-          <svg
-            className="h-4 w-4 text-blue-400"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-            />
-          </svg>
-          <span className="text-sm font-medium text-white">Usage</span>
-        </button>
-
         {/* Profile */}
         <div className="h-10 w-10 overflow-hidden rounded-full border border-blue-500/15 bg-[#0a0f1e] transition-all duration-300 hover:border-blue-500/40 hover:bg-blue-600/10">
           <div className="flex h-full w-full items-center justify-center text-sm font-bold text-blue-400">
@@ -381,7 +319,7 @@ export default function HomePage() {
               Upload Clinical Document
             </h3>
 
-            {/* File Upload */}
+            {/* File Upload - LOCKED */}
             <div className="mb-8">
               <input
                 ref={fileInputRef}
@@ -390,13 +328,38 @@ export default function HomePage() {
                 multiple
                 onChange={handleFileUpload}
                 className="hidden"
+                disabled
               />
               <div
-                onClick={handleFileClick}
-                onDrop={handleDrop}
-                onDragOver={handleDragOver}
-                className="group hover:blue-glow flex cursor-pointer items-center justify-center rounded-2xl border-2 border-dashed border-blue-500/20 bg-blue-600/5 p-12 transition-all duration-300 hover:border-blue-500/50 hover:bg-blue-600/10"
+                className="relative flex cursor-not-allowed items-center justify-center rounded-2xl border-2 border-dashed border-gray-600/20 bg-gray-600/5 p-12 opacity-60"
               >
+                {/* Lock Overlay */}
+                <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-[#0a0f1e]/80 backdrop-blur-sm">
+                  <div className="text-center">
+                    <svg
+                      className="mx-auto mb-3 h-12 w-12 text-yellow-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={1.5}
+                        d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                      />
+                    </svg>
+                    <p className="mb-1 text-base font-semibold text-white">
+                      Upload Locked
+                    </p>
+                    <p className="text-sm text-gray-400">
+                      Static demo mode - cost optimization
+                    </p>
+                    <p className="mt-2 text-xs text-gray-500">
+                      Pre-analyzed sample data available below
+                    </p>
+                  </div>
+                </div>
                 {uploadedFiles.length > 0 ? (
                   <div className="w-full">
                     <div className="mb-4 flex items-center justify-center">
@@ -761,16 +724,12 @@ export default function HomePage() {
               </div>
             )}
 
-            {/* Submit Button */}
+            {/* Submit Button - Always Enabled in Static Mode */}
             <button
               onClick={handleSubmit}
-              disabled={
-                uploadedFiles.filter((f) => f.type === "application/pdf")
-                  .length !== 1 || isAnalyzing
-              }
+              disabled={isAnalyzing}
               className={`group mt-2 w-full cursor-pointer rounded-xl border px-6 py-4 text-base font-semibold transition-all duration-300 ${
-                uploadedFiles.filter((f) => f.type === "application/pdf")
-                  .length === 1 && !isAnalyzing
+                !isAnalyzing
                   ? "hover:blue-glow border-blue-500/30 bg-transparent text-blue-400 hover:border-blue-500/60 hover:bg-blue-600/20 hover:text-blue-300"
                   : "cursor-not-allowed border-gray-600/30 bg-transparent text-gray-600"
               }`}

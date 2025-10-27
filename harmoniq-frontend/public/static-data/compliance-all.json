@@ -1,0 +1,690 @@
+{
+  "USA": {
+    "filename": "AT201_FDA_Noncompliant_Protocol.pdf",
+    "country": "USA",
+    "total_chunks": 14,
+    "processed_chunks": 14,
+    "overall_compliance_score": 0.609,
+    "overall_status": "NON_COMPLIANT",
+    "total_violations": 9,
+    "critical_violations": 5,
+    "chunk_results": [
+      {
+        "chunk_index": 0,
+        "chunk_text": "Phase 3 Clinical Trial Protocol \u2013 AT-201 for Postmenopausal Osteoporosis Indication: Post-menopausal osteoporosis Sponsor: Acme Therapeutics, Inc. Region of Filing: United States (IND under 21 CFR Par...",
+        "total_regulations_checked": 0,
+        "compliant_count": 0,
+        "non_compliant_count": 0,
+        "compliance_score": 1.0,
+        "status": "COMPLIANT",
+        "violations": []
+      },
+      {
+        "chunk_index": 1,
+        "chunk_text": "Synopsis (Purpose & Design) This randomized, open-label Phase 3 trial evaluates AT-201 for vertebral fracture prevention over 18 months. Approximately 3,500 women will receive either AT-201 or no",
+        "total_regulations_checked": 2,
+        "compliant_count": 2,
+        "non_compliant_count": 0,
+        "compliance_score": 1.0,
+        "status": "COMPLIANT",
+        "violations": []
+      },
+      {
+        "chunk_index": 2,
+        "chunk_text": "treatment. The study will be conducted across North America and South America. Primary endpoint: rate of new vertebral fractures at 12 months. Secondary: lumbar spine BMD improvement. Population",
+        "total_regulations_checked": 0,
+        "compliant_count": 0,
+        "non_compliant_count": 0,
+        "compliance_score": 1.0,
+        "status": "COMPLIANT",
+        "violations": []
+      },
+      {
+        "chunk_index": 3,
+        "chunk_text": "Women aged 50\u201390 years. No exclusion criteria will be enforced beyond known allergy to study drug ingredients. Pregnant women and minors may be enrolled at the investigator\u2019s discretion. Interventions",
+        "total_regulations_checked": 0,
+        "compliant_count": 0,
+        "non_compliant_count": 0,
+        "compliance_score": 1.0,
+        "status": "COMPLIANT",
+        "violations": []
+      },
+      {
+        "chunk_index": 4,
+        "chunk_text": "AT-201 100 \u00b5g daily administered subcutaneously; control group will receive no treatment. Participants may change dosing frequency based on personal preference. Safety Monitoring",
+        "total_regulations_checked": 1,
+        "compliant_count": 1,
+        "non_compliant_count": 0,
+        "compliance_score": 1.0,
+        "status": "COMPLIANT",
+        "violations": []
+      },
+      {
+        "chunk_index": 5,
+        "chunk_text": "Adverse events will be collected voluntarily by subjects using a monthly web form. Investigators are not required to follow up on serious adverse events or deaths unless they",
+        "total_regulations_checked": 5,
+        "compliant_count": 3,
+        "non_compliant_count": 2,
+        "compliance_score": 0.591,
+        "status": "NON_COMPLIANT",
+        "violations": [
+          {
+            "regulation_id": "FDA-CHUNK31-REQ-001",
+            "is_related": true,
+            "is_compliant": false,
+            "non_compliance_probability": 0.9,
+            "severity": "critical",
+            "explanation": "The protocol explicitly states that investigators are not required to follow up on serious adverse events or deaths, which directly contradicts the requirement for prompt safety information review.",
+            "missing_elements": [
+              "prompt review of all safety information"
+            ]
+          },
+          {
+            "regulation_id": "FDA-CHUNK31-REQ-002",
+            "is_related": true,
+            "is_compliant": false,
+            "non_compliance_probability": 0.9,
+            "severity": "high",
+            "explanation": "The protocol explicitly states that investigators are not required to follow up on serious adverse events or deaths, which contradicts the requirement to review safety data from clinical investigations.",
+            "missing_elements": [
+              "review of safety data from clinical investigations"
+            ]
+          }
+        ]
+      },
+      {
+        "chunk_index": 6,
+        "chunk_text": "occur onsite. Safety data will be summarized annually, and no Data and Safety Monitoring Board (DSMB) will be convened. Informed Consent and Ethics Oversight",
+        "total_regulations_checked": 3,
+        "compliant_count": 3,
+        "non_compliant_count": 0,
+        "compliance_score": 1.0,
+        "status": "COMPLIANT",
+        "violations": []
+      },
+      {
+        "chunk_index": 7,
+        "chunk_text": "Participants will be informed verbally that their participation is optional. No written consent will be required. No IRB or ethics committee review will be obtained prior to",
+        "total_regulations_checked": 1,
+        "compliant_count": 0,
+        "non_compliant_count": 1,
+        "compliance_score": 0.0,
+        "status": "NON_COMPLIANT",
+        "violations": [
+          {
+            "regulation_id": "FDA-CHUNK1-REQ-006",
+            "is_related": true,
+            "is_compliant": false,
+            "non_compliance_probability": 0.95,
+            "severity": "high",
+            "explanation": "The protocol explicitly states that no IRB review will be obtained, which directly contradicts this regulation requiring IRB documentation for alterations to informed consent requirements.",
+            "missing_elements": [
+              "IRB review and documentation"
+            ]
+          }
+        ]
+      },
+      {
+        "chunk_index": 8,
+        "chunk_text": "initiation, as the sponsor believes the study poses minimal risk. No copies of consent forms will be retained. Participants will not be informed that FDA may inspect their records. Data and Quality Ma...",
+        "total_regulations_checked": 1,
+        "compliant_count": 1,
+        "non_compliant_count": 0,
+        "compliance_score": 1.0,
+        "status": "COMPLIANT",
+        "violations": []
+      },
+      {
+        "chunk_index": 9,
+        "chunk_text": "Data will be recorded in spreadsheet files by site coordinators and uploaded monthly to the sponsor. Electronic signatures and audit trails are not required. No source data verification",
+        "total_regulations_checked": 2,
+        "compliant_count": 2,
+        "non_compliant_count": 0,
+        "compliance_score": 1.0,
+        "status": "COMPLIANT",
+        "violations": []
+      },
+      {
+        "chunk_index": 10,
+        "chunk_text": "or monitoring visits are planned. Sites may implement their own recordkeeping systems. Data will be retained for at least 6 months after study completion. Regulatory and IND Compliance",
+        "total_regulations_checked": 2,
+        "compliant_count": 0,
+        "non_compliant_count": 2,
+        "compliance_score": 0.0,
+        "status": "NON_COMPLIANT",
+        "violations": [
+          {
+            "regulation_id": "FDA-CHUNK72-REQ-002",
+            "is_related": true,
+            "is_compliant": false,
+            "non_compliance_probability": 0.9,
+            "severity": "high",
+            "explanation": "The protocol states data will be retained for at least 6 months after study completion, which is less than the 2 years required by the regulation after marketing application approval.",
+            "missing_elements": [
+              "2-year retention period"
+            ]
+          },
+          {
+            "regulation_id": "FDA-CHUNK68-REQ-004",
+            "is_related": true,
+            "is_compliant": false,
+            "non_compliance_probability": 0.9,
+            "severity": "high",
+            "explanation": "The protocol specifies a 6-month retention period, which is less than the 2 years required if the application is not approved.",
+            "missing_elements": [
+              "2-year retention period for unapproved applications"
+            ]
+          }
+        ]
+      },
+      {
+        "chunk_index": 11,
+        "chunk_text": "The IND will be filed post-study if data appear promising. No Form 1572 will be collected from investigators. No investigator brochure will be provided. Serious adverse events will",
+        "total_regulations_checked": 2,
+        "compliant_count": 0,
+        "non_compliant_count": 2,
+        "compliance_score": 0.0,
+        "status": "NON_COMPLIANT",
+        "violations": [
+          {
+            "regulation_id": "FDA-CHUNK42-REQ-004",
+            "is_related": true,
+            "is_compliant": false,
+            "non_compliance_probability": 0.95,
+            "severity": "critical",
+            "explanation": "The protocol explicitly states the IND will be filed post-study, which directly contradicts the requirement to submit an IND with sufficient information to assess subject risks before the study begins.",
+            "missing_elements": [
+              "pre-study IND submission",
+              "risk assessment information"
+            ]
+          },
+          {
+            "regulation_id": "FDA-CHUNK40-REQ-001",
+            "is_related": true,
+            "is_compliant": false,
+            "non_compliance_probability": 0.95,
+            "severity": "critical",
+            "explanation": "The protocol explicitly states the IND will be filed post-study, which directly contradicts the requirement to submit an IND before clinical investigation begins.",
+            "missing_elements": [
+              "pre-study IND submission"
+            ]
+          }
+        ]
+      },
+      {
+        "chunk_index": 12,
+        "chunk_text": "be summarized in the annual report only, and not reported within the 15-day window specified in 21 CFR 312.32. Protocol changes do not require FDA notification and may be",
+        "total_regulations_checked": 3,
+        "compliant_count": 2,
+        "non_compliant_count": 1,
+        "compliance_score": 0.615,
+        "status": "NON_COMPLIANT",
+        "violations": [
+          {
+            "regulation_id": "FDA-CHUNK36-REQ-002",
+            "is_related": true,
+            "is_compliant": false,
+            "non_compliance_probability": 0.9,
+            "severity": "critical",
+            "explanation": "The protocol states that events will be summarized in the annual report only, which directly contradicts the requirement to report serious unexpected adverse events within 15 days. This is a clear violation of the regulation.",
+            "missing_elements": [
+              "15-day reporting window for serious unexpected adverse events"
+            ]
+          }
+        ]
+      },
+      {
+        "chunk_index": 13,
+        "chunk_text": "implemented immediately. The sponsor may delegate all regulatory responsibilities to local CROs without documentation.",
+        "total_regulations_checked": 1,
+        "compliant_count": 0,
+        "non_compliant_count": 1,
+        "compliance_score": 0.0,
+        "status": "NON_COMPLIANT",
+        "violations": [
+          {
+            "regulation_id": "FDA-CHUNK114-REQ-003",
+            "is_related": true,
+            "is_compliant": false,
+            "non_compliance_probability": 0.9,
+            "severity": "critical",
+            "explanation": "The protocol states that the sponsor may delegate all regulatory responsibilities to local CROs without documentation. This directly contradicts the requirement for sponsors to verify physician compliance with investigator regulations.",
+            "missing_elements": [
+              "documentation of regulatory responsibilities",
+              "verification of physician compliance"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "EU": {
+    "filename": "AT201_FDA_Noncompliant_Protocol.pdf",
+    "country": "EUROPE",
+    "total_chunks": 14,
+    "processed_chunks": 14,
+    "overall_compliance_score": 0.0,
+    "overall_status": "COMPLIANT",
+    "total_violations": 0,
+    "critical_violations": 0,
+    "chunk_results": [
+      {
+        "chunk_index": 0,
+        "chunk_text": "Phase 3 Clinical Trial Protocol \u2013 AT-201 for Postmenopausal Osteoporosis Indication: Post-menopausal osteoporosis Sponsor: Acme Therapeutics, Inc. Region of Filing: United States (IND under 21 CFR Par...",
+        "total_regulations_checked": 0,
+        "compliant_count": 0,
+        "non_compliant_count": 0,
+        "compliance_score": 0.0,
+        "status": "ERROR",
+        "violations": []
+      },
+      {
+        "chunk_index": 1,
+        "chunk_text": "Synopsis (Purpose & Design) This randomized, open-label Phase 3 trial evaluates AT-201 for vertebral fracture prevention over 18 months. Approximately 3,500 women will receive either AT-201 or no",
+        "total_regulations_checked": 0,
+        "compliant_count": 0,
+        "non_compliant_count": 0,
+        "compliance_score": 0.0,
+        "status": "ERROR",
+        "violations": []
+      },
+      {
+        "chunk_index": 2,
+        "chunk_text": "treatment. The study will be conducted across North America and South America. Primary endpoint: rate of new vertebral fractures at 12 months. Secondary: lumbar spine BMD improvement. Population",
+        "total_regulations_checked": 0,
+        "compliant_count": 0,
+        "non_compliant_count": 0,
+        "compliance_score": 0.0,
+        "status": "ERROR",
+        "violations": []
+      },
+      {
+        "chunk_index": 3,
+        "chunk_text": "Women aged 50\u201390 years. No exclusion criteria will be enforced beyond known allergy to study drug ingredients. Pregnant women and minors may be enrolled at the investigator\u2019s discretion. Interventions",
+        "total_regulations_checked": 0,
+        "compliant_count": 0,
+        "non_compliant_count": 0,
+        "compliance_score": 0.0,
+        "status": "ERROR",
+        "violations": []
+      },
+      {
+        "chunk_index": 4,
+        "chunk_text": "AT-201 100 \u00b5g daily administered subcutaneously; control group will receive no treatment. Participants may change dosing frequency based on personal preference. Safety Monitoring",
+        "total_regulations_checked": 0,
+        "compliant_count": 0,
+        "non_compliant_count": 0,
+        "compliance_score": 0.0,
+        "status": "ERROR",
+        "violations": []
+      },
+      {
+        "chunk_index": 5,
+        "chunk_text": "Adverse events will be collected voluntarily by subjects using a monthly web form. Investigators are not required to follow up on serious adverse events or deaths unless they",
+        "total_regulations_checked": 0,
+        "compliant_count": 0,
+        "non_compliant_count": 0,
+        "compliance_score": 0.0,
+        "status": "ERROR",
+        "violations": []
+      },
+      {
+        "chunk_index": 6,
+        "chunk_text": "occur onsite. Safety data will be summarized annually, and no Data and Safety Monitoring Board (DSMB) will be convened. Informed Consent and Ethics Oversight",
+        "total_regulations_checked": 0,
+        "compliant_count": 0,
+        "non_compliant_count": 0,
+        "compliance_score": 0.0,
+        "status": "ERROR",
+        "violations": []
+      },
+      {
+        "chunk_index": 7,
+        "chunk_text": "Participants will be informed verbally that their participation is optional. No written consent will be required. No IRB or ethics committee review will be obtained prior to",
+        "total_regulations_checked": 0,
+        "compliant_count": 0,
+        "non_compliant_count": 0,
+        "compliance_score": 0.0,
+        "status": "ERROR",
+        "violations": []
+      },
+      {
+        "chunk_index": 8,
+        "chunk_text": "initiation, as the sponsor believes the study poses minimal risk. No copies of consent forms will be retained. Participants will not be informed that FDA may inspect their records. Data and Quality Ma...",
+        "total_regulations_checked": 0,
+        "compliant_count": 0,
+        "non_compliant_count": 0,
+        "compliance_score": 0.0,
+        "status": "ERROR",
+        "violations": []
+      },
+      {
+        "chunk_index": 9,
+        "chunk_text": "Data will be recorded in spreadsheet files by site coordinators and uploaded monthly to the sponsor. Electronic signatures and audit trails are not required. No source data verification",
+        "total_regulations_checked": 0,
+        "compliant_count": 0,
+        "non_compliant_count": 0,
+        "compliance_score": 0.0,
+        "status": "ERROR",
+        "violations": []
+      },
+      {
+        "chunk_index": 10,
+        "chunk_text": "or monitoring visits are planned. Sites may implement their own recordkeeping systems. Data will be retained for at least 6 months after study completion. Regulatory and IND Compliance",
+        "total_regulations_checked": 0,
+        "compliant_count": 0,
+        "non_compliant_count": 0,
+        "compliance_score": 0.0,
+        "status": "ERROR",
+        "violations": []
+      },
+      {
+        "chunk_index": 11,
+        "chunk_text": "The IND will be filed post-study if data appear promising. No Form 1572 will be collected from investigators. No investigator brochure will be provided. Serious adverse events will",
+        "total_regulations_checked": 0,
+        "compliant_count": 0,
+        "non_compliant_count": 0,
+        "compliance_score": 0.0,
+        "status": "ERROR",
+        "violations": []
+      },
+      {
+        "chunk_index": 12,
+        "chunk_text": "be summarized in the annual report only, and not reported within the 15-day window specified in 21 CFR 312.32. Protocol changes do not require FDA notification and may be",
+        "total_regulations_checked": 0,
+        "compliant_count": 0,
+        "non_compliant_count": 0,
+        "compliance_score": 0.0,
+        "status": "ERROR",
+        "violations": []
+      },
+      {
+        "chunk_index": 13,
+        "chunk_text": "implemented immediately. The sponsor may delegate all regulatory responsibilities to local CROs without documentation.",
+        "total_regulations_checked": 0,
+        "compliant_count": 0,
+        "non_compliant_count": 0,
+        "compliance_score": 0.0,
+        "status": "ERROR",
+        "violations": []
+      }
+    ]
+  },
+  "JAPAN": {
+    "filename": "AT201_FDA_Noncompliant_Protocol.pdf",
+    "country": "JAPAN",
+    "total_chunks": 14,
+    "processed_chunks": 14,
+    "overall_compliance_score": 0.75,
+    "overall_status": "NON_COMPLIANT",
+    "total_violations": 11,
+    "critical_violations": 3,
+    "chunk_results": [
+      {
+        "chunk_index": 0,
+        "chunk_text": "Phase 3 Clinical Trial Protocol \u2013 AT-201 for Postmenopausal Osteoporosis Indication: Post-menopausal osteoporosis Sponsor: Acme Therapeutics, Inc. Region of Filing: United States (IND under 21 CFR Par...",
+        "total_regulations_checked": 3,
+        "compliant_count": 3,
+        "non_compliant_count": 0,
+        "compliance_score": 1.0,
+        "status": "COMPLIANT",
+        "violations": []
+      },
+      {
+        "chunk_index": 1,
+        "chunk_text": "Synopsis (Purpose & Design) This randomized, open-label Phase 3 trial evaluates AT-201 for vertebral fracture prevention over 18 months. Approximately 3,500 women will receive either AT-201 or no",
+        "total_regulations_checked": 5,
+        "compliant_count": 5,
+        "non_compliant_count": 0,
+        "compliance_score": 1.0,
+        "status": "COMPLIANT",
+        "violations": []
+      },
+      {
+        "chunk_index": 2,
+        "chunk_text": "treatment. The study will be conducted across North America and South America. Primary endpoint: rate of new vertebral fractures at 12 months. Secondary: lumbar spine BMD improvement. Population",
+        "total_regulations_checked": 0,
+        "compliant_count": 0,
+        "non_compliant_count": 0,
+        "compliance_score": 1.0,
+        "status": "COMPLIANT",
+        "violations": []
+      },
+      {
+        "chunk_index": 3,
+        "chunk_text": "Women aged 50\u201390 years. No exclusion criteria will be enforced beyond known allergy to study drug ingredients. Pregnant women and minors may be enrolled at the investigator\u2019s discretion. Interventions",
+        "total_regulations_checked": 0,
+        "compliant_count": 0,
+        "non_compliant_count": 0,
+        "compliance_score": 1.0,
+        "status": "COMPLIANT",
+        "violations": []
+      },
+      {
+        "chunk_index": 4,
+        "chunk_text": "AT-201 100 \u00b5g daily administered subcutaneously; control group will receive no treatment. Participants may change dosing frequency based on personal preference. Safety Monitoring",
+        "total_regulations_checked": 2,
+        "compliant_count": 2,
+        "non_compliant_count": 0,
+        "compliance_score": 1.0,
+        "status": "COMPLIANT",
+        "violations": []
+      },
+      {
+        "chunk_index": 5,
+        "chunk_text": "Adverse events will be collected voluntarily by subjects using a monthly web form. Investigators are not required to follow up on serious adverse events or deaths unless they",
+        "total_regulations_checked": 7,
+        "compliant_count": 7,
+        "non_compliant_count": 0,
+        "compliance_score": 1.0,
+        "status": "COMPLIANT",
+        "violations": []
+      },
+      {
+        "chunk_index": 6,
+        "chunk_text": "occur onsite. Safety data will be summarized annually, and no Data and Safety Monitoring Board (DSMB) will be convened. Informed Consent and Ethics Oversight",
+        "total_regulations_checked": 1,
+        "compliant_count": 1,
+        "non_compliant_count": 0,
+        "compliance_score": 1.0,
+        "status": "COMPLIANT",
+        "violations": []
+      },
+      {
+        "chunk_index": 7,
+        "chunk_text": "Participants will be informed verbally that their participation is optional. No written consent will be required. No IRB or ethics committee review will be obtained prior to",
+        "total_regulations_checked": 6,
+        "compliant_count": 3,
+        "non_compliant_count": 3,
+        "compliance_score": 0.5,
+        "status": "NON_COMPLIANT",
+        "violations": [
+          {
+            "regulation_id": "PMDA-CHUNK66-REQ-005",
+            "is_related": true,
+            "is_compliant": false,
+            "non_compliance_probability": 0.95,
+            "severity": "critical",
+            "explanation": "The protocol explicitly states 'No written consent will be required', which directly contradicts the regulation requiring written informed consent.",
+            "missing_elements": [
+              "written informed consent"
+            ]
+          },
+          {
+            "regulation_id": "PMDA-CHUNK66-REQ-006",
+            "is_related": true,
+            "is_compliant": false,
+            "non_compliance_probability": 0.9,
+            "severity": "high",
+            "explanation": "The protocol states information will be provided verbally, not in writing as required by this regulation.",
+            "missing_elements": [
+              "written explanation of trial information"
+            ]
+          },
+          {
+            "regulation_id": "PMDA-CHUNK67-REQ-006",
+            "is_related": true,
+            "is_compliant": false,
+            "non_compliance_probability": 0.95,
+            "severity": "critical",
+            "explanation": "The protocol explicitly states no written information will be provided, which directly contradicts this regulation.",
+            "missing_elements": [
+              "written information on trial details"
+            ]
+          }
+        ]
+      },
+      {
+        "chunk_index": 8,
+        "chunk_text": "initiation, as the sponsor believes the study poses minimal risk. No copies of consent forms will be retained. Participants will not be informed that FDA may inspect their records. Data and Quality Ma...",
+        "total_regulations_checked": 4,
+        "compliant_count": 0,
+        "non_compliant_count": 4,
+        "compliance_score": 0.0,
+        "status": "NON_COMPLIANT",
+        "violations": [
+          {
+            "regulation_id": "PMDA-CHUNK77-REQ-006",
+            "is_related": true,
+            "is_compliant": false,
+            "non_compliance_probability": 0.95,
+            "severity": "high",
+            "explanation": "The protocol explicitly states 'No copies of consent forms will be retained', which directly contradicts the requirement to keep records related to clinical trial management.",
+            "missing_elements": [
+              "retention of consent forms"
+            ]
+          },
+          {
+            "regulation_id": "PMDA-CHUNK79-REQ-002",
+            "is_related": true,
+            "is_compliant": false,
+            "non_compliance_probability": 0.9,
+            "severity": "high",
+            "explanation": "The protocol states that no consent forms will be retained, which contradicts the requirement for sponsor-investigators to keep records of clinical trials.",
+            "missing_elements": [
+              "retention of clinical trial records"
+            ]
+          },
+          {
+            "regulation_id": "PMDA-CHUNK79-REQ-007",
+            "is_related": true,
+            "is_compliant": false,
+            "non_compliance_probability": 0.9,
+            "severity": "high",
+            "explanation": "The protocol's statement about not retaining consent forms contradicts the requirement to retain records related to clinical trials.",
+            "missing_elements": [
+              "retention of clinical trial records"
+            ]
+          },
+          {
+            "regulation_id": "PMDA-CHUNK44-REQ-006",
+            "is_related": true,
+            "is_compliant": false,
+            "non_compliance_probability": 0.9,
+            "severity": "high",
+            "explanation": "The protocol's statement about not retaining consent forms contradicts the requirement to retain clinical trial records for specified time periods.",
+            "missing_elements": [
+              "retention of clinical trial records"
+            ]
+          }
+        ]
+      },
+      {
+        "chunk_index": 9,
+        "chunk_text": "Data will be recorded in spreadsheet files by site coordinators and uploaded monthly to the sponsor. Electronic signatures and audit trails are not required. No source data verification",
+        "total_regulations_checked": 2,
+        "compliant_count": 2,
+        "non_compliant_count": 0,
+        "compliance_score": 1.0,
+        "status": "COMPLIANT",
+        "violations": []
+      },
+      {
+        "chunk_index": 10,
+        "chunk_text": "or monitoring visits are planned. Sites may implement their own recordkeeping systems. Data will be retained for at least 6 months after study completion. Regulatory and IND Compliance",
+        "total_regulations_checked": 8,
+        "compliant_count": 8,
+        "non_compliant_count": 0,
+        "compliance_score": 1.0,
+        "status": "COMPLIANT",
+        "violations": []
+      },
+      {
+        "chunk_index": 11,
+        "chunk_text": "The IND will be filed post-study if data appear promising. No Form 1572 will be collected from investigators. No investigator brochure will be provided. Serious adverse events will",
+        "total_regulations_checked": 4,
+        "compliant_count": 1,
+        "non_compliant_count": 3,
+        "compliance_score": 0.235,
+        "status": "NON_COMPLIANT",
+        "violations": [
+          {
+            "regulation_id": "PMDA-CHUNK26-REQ-006",
+            "is_related": true,
+            "is_compliant": false,
+            "non_compliance_probability": 0.95,
+            "severity": "critical",
+            "explanation": "The protocol explicitly states 'No Form 1572 will be collected from investigators', which directly contradicts the requirement to submit required documents for approval.",
+            "missing_elements": [
+              "Form 1572 submission"
+            ]
+          },
+          {
+            "regulation_id": "PMDA-CHUNK26-REQ-005",
+            "is_related": true,
+            "is_compliant": false,
+            "non_compliance_probability": 0.9,
+            "severity": "high",
+            "explanation": "The protocol states 'No investigator brochure will be provided', which contradicts the requirement to prepare written information for the clinical trial.",
+            "missing_elements": [
+              "Investigator brochure"
+            ]
+          },
+          {
+            "regulation_id": "PMDA-CHUNK26-REQ-007",
+            "is_related": true,
+            "is_compliant": false,
+            "non_compliance_probability": 0.9,
+            "severity": "high",
+            "explanation": "The protocol implies that proper documentation will not be submitted, as it states 'The IND will be filed post-study if data appear promising', which contradicts the requirement to submit the protocol to the medical institution head.",
+            "missing_elements": [
+              "Protocol submission before study initiation"
+            ]
+          }
+        ]
+      },
+      {
+        "chunk_index": 12,
+        "chunk_text": "be summarized in the annual report only, and not reported within the 15-day window specified in 21 CFR 312.32. Protocol changes do not require FDA notification and may be",
+        "total_regulations_checked": 1,
+        "compliant_count": 1,
+        "non_compliant_count": 0,
+        "compliance_score": 1.0,
+        "status": "COMPLIANT",
+        "violations": []
+      },
+      {
+        "chunk_index": 13,
+        "chunk_text": "implemented immediately. The sponsor may delegate all regulatory responsibilities to local CROs without documentation.",
+        "total_regulations_checked": 1,
+        "compliant_count": 0,
+        "non_compliant_count": 1,
+        "compliance_score": 0.0,
+        "status": "NON_COMPLIANT",
+        "violations": [
+          {
+            "regulation_id": "PMDA-CHUNK28-REQ-005",
+            "is_related": true,
+            "is_compliant": false,
+            "non_compliance_probability": 0.9,
+            "severity": "medium",
+            "explanation": "The protocol states that the sponsor may delegate all regulatory responsibilities without documentation, which directly contradicts the requirement for a contract stating the sponsor's right to verify compliance.",
+            "missing_elements": [
+              "Contract specifying sponsor's right to verify compliance"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

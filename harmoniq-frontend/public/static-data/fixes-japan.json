@@ -1,0 +1,94 @@
+{
+  "country": "JAPAN",
+  "original_filename": "AT201_FDA_Noncompliant_Protocol.pdf",
+  "total_changes": 10,
+  "chunks_processed": 14,
+  "changes": [
+    {
+      "type": "replace",
+      "original": "Participants will be informed verbally that their participation is optional. No written consent will be required.",
+      "replacement": "Participants will be provided written information about the trial and asked to sign a written informed consent form before participation. The consent form will explain that participation is optional.",
+      "reason": "VIOLATION 1 & 2: Requires written informed consent and written explanation of trial information",
+      "addresses_violation": [
+        1,
+        2
+      ]
+    },
+    {
+      "type": "add",
+      "after": "Informed Consent and Ethics Oversight",
+      "content": " Written information will be provided to subjects including all required trial details as specified by regulations.",
+      "reason": "VIOLATION 3: Requires providing written information with specified trial details",
+      "addresses_violation": 3
+    },
+    {
+      "type": "delete",
+      "text": "No IRB or ethics committee re",
+      "reason": "Incomplete sentence that may imply lack of ethics oversight. Full ethics review details should be added.",
+      "addresses_violation": [
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "type": "replace",
+      "original": "No copies of consent forms will be retained.",
+      "replacement": "Copies of consent forms will be retained for the required retention period.",
+      "reason": "VIOLATIONS 1-4: Retaining consent forms is necessary to comply with record-keeping requirements for clinical trials",
+      "addresses_violation": [
+        1,
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "type": "add",
+      "after": "Copies of consent forms will be retained for the required retention period.",
+      "content": " All clinical trial records will be maintained in accordance with applicable regulations.",
+      "reason": "VIOLATIONS 1-4: Explicitly stating compliance with record retention requirements",
+      "addresses_violation": [
+        1,
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "type": "add",
+      "after": "All clinical trial records will be maintained in accordance with applicable regulations.",
+      "content": " The sponsor-investigator will retain these records for the specified time periods as required by law.",
+      "reason": "VIOLATION 4: Addressing the specific requirement for sponsor-investigators to retain records for specified time periods",
+      "addresses_violation": 4
+    },
+    {
+      "type": "replace",
+      "original": "No Form 1572 will be collected from investigators.",
+      "replacement": "Form 1572 will be collected from investigators and submitted to the head of the medical institution for approval.",
+      "reason": "VIOLATION 1: Ensures required documents are submitted for approval",
+      "addresses_violation": 1
+    },
+    {
+      "type": "add",
+      "after": "No invest",
+      "content": "igator brochure will be provided. An investigator brochure containing written information for the clinical trial will be prepared and distributed to investigators.",
+      "reason": "VIOLATION 2: Ensures written information is prepared for the clinical trial",
+      "addresses_violation": 2
+    },
+    {
+      "type": "replace",
+      "original": "The IND will be filed post-study if data appear promising.",
+      "replacement": "The IND, including the protocol and any amendments, will be submitted to the medical institution head prior to study initiation.",
+      "reason": "VIOLATION 3: Ensures protocol is submitted to medical institution head before study starts",
+      "addresses_violation": 3
+    },
+    {
+      "type": "replace",
+      "original": "The sponsor may delegate all regulatory responsibilities to local CROs without documentation.",
+      "replacement": "The sponsor may delegate regulatory responsibilities to local CROs, but must maintain a contract stating the sponsor's right to verify compliance with instructions.",
+      "reason": "VIOLATION 1: Ensures compliance with the requirement for a contract stating the sponsor's right to verify compliance when delegating responsibilities",
+      "addresses_violation": 1
+    }
+  ]
+}

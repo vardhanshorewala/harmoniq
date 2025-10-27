@@ -1,0 +1,79 @@
+{
+  "country": "USA",
+  "original_filename": "AT201_FDA_Noncompliant_Protocol.pdf",
+  "total_changes": 9,
+  "chunks_processed": 14,
+  "changes": [
+    {
+      "type": "replace",
+      "original": "Adverse events will be collected voluntarily by subjects using a monthly web form.",
+      "replacement": "Adverse events will be collected voluntarily by subjects using a monthly web form. Investigators will promptly review and follow up on all reported adverse events, including serious adverse events and deaths.",
+      "reason": "VIOLATION 1 & 2: Ensures prompt review of all safety information and follow-up on serious adverse events from clinical investigations",
+      "addresses_violation": [
+        1,
+        2
+      ]
+    },
+    {
+      "type": "replace",
+      "original": "Investigators are not requir",
+      "replacement": "Investigators are required to review all safety data from clinical investigations and promptly report serious adverse events and deaths to the sponsor.",
+      "reason": "VIOLATION 1 & 2: Explicitly states investigator responsibility to review safety data and report serious events, addressing both violations",
+      "addresses_violation": [
+        1,
+        2
+      ]
+    },
+    {
+      "type": "replace",
+      "original": "No IRB or ethics committee re",
+      "replacement": "IRB review and approval will be obtained prior to initiating the study. The IRB will document findings for any approved alterations to informed consent requirements.",
+      "reason": "VIOLATION 1: Adds required IRB review and documentation of findings for alterations to informed consent, addressing the regulatory requirement",
+      "addresses_violation": 1
+    },
+    {
+      "type": "replace",
+      "original": "Data will be retained for at least ",
+      "replacement": "Data will be retained for at least 2 years after marketing application approval, or if the application is not approved, for 2 years after discontinuing investigational use.",
+      "reason": "VIOLATION 1 & 2: Specifies the required 2-year retention period for both scenarios (approval and non-approval) to comply with regulations",
+      "addresses_violation": 1
+    },
+    {
+      "type": "add",
+      "after": "Sites may implement their own recordkeeping systems.",
+      "content": " However, all sites must adhere to the minimum data retention requirements as specified in the protocol.",
+      "reason": "VIOLATION 1 & 2: Reinforces compliance with retention requirements across all sites",
+      "addresses_violation": 2
+    },
+    {
+      "type": "replace",
+      "original": "The IND will be filed post-study if data appear promising.",
+      "replacement": "An IND application will be submitted to the FDA before initiating the clinical investigation, containing sufficient information to assess subject risks.",
+      "reason": "VIOLATIONS 1 & 2: IND must be submitted before study start with sufficient information to assess risks, not post-study",
+      "addresses_violation": [
+        1,
+        2
+      ]
+    },
+    {
+      "type": "delete",
+      "text": "No Form 1572 will be collected from investigators.",
+      "reason": "VIOLATION 1: Removing statement that contradicts proper IND submission process",
+      "addresses_violation": 1
+    },
+    {
+      "type": "replace",
+      "original": "Serious adverse events will be summarized in the annual report only, and not reported within the 15-day window specified in 21 CFR 312.32.",
+      "replacement": "Serious unexpected adverse events with suspected drug causation will be reported within the 15-day window specified in 21 CFR 312.32, in addition to being summarized in the annual report.",
+      "reason": "VIOLATION 1: Corrects the protocol to comply with the requirement to report serious unexpected adverse events within 15 days, even if they are part of the study endpoint.",
+      "addresses_violation": 1
+    },
+    {
+      "type": "replace",
+      "original": "The sponsor may delegate all regulatory responsibilities to local CROs without documentation.",
+      "replacement": "The sponsor may delegate some regulatory responsibilities to local CROs with proper documentation, but must retain oversight and verify physician compliance with investigator regulations.",
+      "reason": "VIOLATION 1: Sponsors must maintain oversight and verify physician compliance with regulations, even when delegating tasks to CROs.",
+      "addresses_violation": 1
+    }
+  ]
+}
